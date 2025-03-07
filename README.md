@@ -12,7 +12,7 @@
 
 ### 效果展示
 
-![](https://github.com/Bonjir/WorkRelaxTimer/tree/main/.github/(1).png)![](https://github.com/Bonjir/WorkRelaxTimer/tree/main/.github/(2).png)![](https://github.com/Bonjir/WorkRelaxTimer/tree/main/.github/(3).png)![](https://github.com/Bonjir/WorkRelaxTimer/tree/main/.github/(4).png)
+![](https://github.com/Bonjir/WorkRelaxTimer/blob/main/.github/(1).png)![](https://github.com/Bonjir/WorkRelaxTimer/blob/main/.github/(2).png)![](https://github.com/Bonjir/WorkRelaxTimer/blob/main/.github/(3).png)![](https://github.com/Bonjir/WorkRelaxTimer/blob/main/.github/(4).png)
 
 ### TODO
 
