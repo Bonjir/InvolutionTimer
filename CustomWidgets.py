@@ -2,22 +2,25 @@
 
 from PyQt5.QtCore import Qt, QTime, QEasingCurve, \
     QPoint, QSize, QRect, \
-    QTimer, QPropertyAnimation, pyqtProperty
+    QTimer, QPropertyAnimation, pyqtProperty, pyqtSignal
 from PyQt5.QtWidgets import QWidget, QPushButton, QLineEdit, QApplication
-from PyQt5.QtGui import QCursor, QColor
+from PyQt5.QtGui import QCursor, QColor, QPainterPath
+import typing
 
-from SimpleAnimation import SimpleShrink, ShrinkTo
+from ui.palette import Palette
 
-
-class AnimatedButton(QPushButton):
-    def __init__(self, text, parent=None):
-        super().__init__(text, parent)
-        self._bg_basic_color = QColor(255, 255, 255)
-        self._bg_hover_color = QColor(169, 206, 254)
-        self._bg_press_color = QColor(112, 169, 254) # QColor(52, 152, 219)
-        self._text_basic_color = QColor(112, 169, 254)
-        self._text_hover_color = QColor(112, 169, 254)
-        self._text_press_color = QColor(255, 255, 255)
+class AnimatedButtonMixin:
+    doubleClicked = pyqtSignal()
+    def __init__(self, *args):
+        super().__init__(*args)  # 跳过所有参数
+        self._bg_basic_color = Palette.white
+        self._bg_hover_color = Palette.blue_light
+        self._bg_press_color = Palette.blue
+        self._bg_toggled_color = Palette.blue_light
+        self._text_basic_color = Palette.blue
+        self._text_hover_color = Palette.blue_dark
+        self._text_press_color = Palette.white
+        self._text_toggled_color = Palette.blue_dark
         
         self._bg_color = self._bg_basic_color  # 初始背景色（白）
         self._text_color = self._text_basic_color # 初始文字色（蓝）
@@ -31,8 +34,8 @@ class AnimatedButton(QPushButton):
         self._hover_animation.setStartValue(self._bg_basic_color)
         self._hover_animation.setEndValue(self._bg_hover_color)
 
-        self.enterEvent = lambda e: self._toggle_hover_animation(forward=True)
-        self.leaveEvent = lambda e: self._toggle_hover_animation(forward=False)
+        self.enterEvent = lambda e: self._toggle_hover_animation(True)
+        self.leaveEvent = lambda e: self._toggle_hover_animation(False)
 
         # 按下动画
         self._press_animation = QPropertyAnimation(self, b"blend_color")
@@ -43,6 +46,7 @@ class AnimatedButton(QPushButton):
         self._press_animation.setEndValue(self._bg_press_color)
 
         self._mouse_pressed = False
+        self._toggled = False  # For Toggle Button
 
     # 定义动态属性（供动画驱动）
     @pyqtProperty(QColor)
@@ -74,12 +78,12 @@ class AnimatedButton(QPushButton):
 
     def _update_style(self):
         self.setStyleSheet(f"""
-            AnimatedButton {{
+            {self.__class__.__name__} {{
                 background-color: {self._bg_color.name()};
                 color: {self._text_color.name()};
-                border: 2px solid #3498db;
+                border: 2px solid {self._bg_press_color.name()};
                 padding: 10px;
-                border-radius: 5px;
+                border-radius: 10px;
             }}
         """)
         
@@ -101,22 +105,49 @@ class AnimatedButton(QPushButton):
         self._toggle_press_animation(forward=False)
         return super().mouseReleaseEvent(e)
     
-    def set_bg_color(self, basic, hover, press):
+    def mouseDoubleClickEvent(self, e):
+        self.doubleClicked.emit()
+    
+    def set_bg_color(self, basic, hover, press, toggled = None):
         self._bg_basic_color = basic
         self._bg_hover_color = hover
         self._bg_press_color = press
+        self._bg_toggled_color = toggled if toggled else hover
+        self._bg_color = self._bg_basic_color
+        self._update_style()
         
         self._hover_animation.setStartValue(self._bg_basic_color)
         self._hover_animation.setEndValue(self._bg_hover_color)
         self._press_animation.setStartValue(self._bg_hover_color)
         self._press_animation.setEndValue(self._bg_press_color)
 
-    def set_text_color(self, basic, hover, press):
+    def set_text_color(self, basic, hover, press, toggled = None):
         self._text_basic_color = basic
         self._text_hover_color = hover
         self._text_press_color = press
+        self._text_color = self._text_basic_color
+        self._text_toggled_color = toggled if toggled else hover
+        self._update_style()
+
+    def set_toggled(self, toggled):
+        self._toggled = toggled
+        if toggled:
+            self._hover_animation.setStartValue(self._bg_toggled_color)
+        else:
+            self._hover_animation.setStartValue(self._bg_basic_color)
+    
+    def toggled(self):
+        return self._toggled
+    
+class AnimatedPushButton(AnimatedButtonMixin, QPushButton):
+    def __init__(self, *args):
+        super().__init__(*args) # 向上传递所有参数
+
 
 class MouseEventPenetrateMixin:
+    def __init__(self, *args):
+        super().__init__(*args) # 跳过所有参数
+        pass
     
     def mousePressEvent(self, e):
         self.parent().mousePressEvent(e) # 把事件转发给主窗口
@@ -127,12 +158,37 @@ class MouseEventPenetrateMixin:
         return super().mouseMoveEvent(e)
     
     def mouseReleaseEvent(self, e):
-        self.parent().mouseReleaseEvent(e) # 把事件转发给主窗口
+        self.parent().mouseReleaseEvent(e) # 其实对于penetrate button来说这个多余的，会多出一个release event，但是对于edit又是必要的
         return super().mouseReleaseEvent(e)
 
-class PenetrateAnimatedButton(MouseEventPenetrateMixin, AnimatedButton):
-    def __init__(self, text: str = '', parent: QWidget = None):
-        AnimatedButton.__init__(self, text, parent)
+class PenetrateAnimatedButton(MouseEventPenetrateMixin, AnimatedPushButton):
+    @typing.overload
+    def __init__(self) -> None: ...
+    @typing.overload
+    def __init__(self, parent: typing.Optional[QWidget] = ...) -> None: ...
+    @typing.overload
+    def __init__(self, text: typing.Optional[str], parent: typing.Optional[QWidget] = ...) -> None: ...
+    
+    def __init__(self, *args, **kwargs):
+        # 动态处理参数类型
+        text = ""
+        parent = None
+        
+        # 参数解析逻辑
+        if args:
+            if isinstance(args[0], str):
+                text = args[0]
+                if len(args) > 1 and isinstance(args[1], QWidget):
+                    parent = args[1]
+            elif isinstance(args[0], QWidget):
+                parent = args[0]
+        
+        # 处理关键字参数
+        text = kwargs.get('text', text)
+        parent = kwargs.get('parent', parent)
+        
+        # 调用QPushButton的构造函数
+        super().__init__(text, parent)
         self.setFocusPolicy(Qt.FocusPolicy.NoFocus)
 
 class PenetrateWidget(MouseEventPenetrateMixin, QWidget):
@@ -140,7 +196,32 @@ class PenetrateWidget(MouseEventPenetrateMixin, QWidget):
         QWidget.__init__(self, parent)
 
 class PenetrateButton(MouseEventPenetrateMixin, QPushButton):
-    def __init__(self, text: str = '', parent: QWidget = None):
+    @typing.overload
+    def __init__(self) -> None: ...
+    @typing.overload
+    def __init__(self, parent: typing.Optional[QWidget] = ...) -> None: ...
+    @typing.overload
+    def __init__(self, text: typing.Optional[str], parent: typing.Optional[QWidget] = ...) -> None: ...
+    
+    def __init__(self, *args, **kwargs):
+        # 动态处理参数类型
+        text = ""
+        parent = None
+        
+        # 参数解析逻辑
+        if args:
+            if isinstance(args[0], str):
+                text = args[0]
+                if len(args) > 1 and isinstance(args[1], QWidget):
+                    parent = args[1]
+            elif isinstance(args[0], QWidget):
+                parent = args[0]
+        
+        # 处理关键字参数
+        text = kwargs.get('text', text)
+        parent = kwargs.get('parent', parent)
+        
+        # 调用QPushButton的构造函数
         QPushButton.__init__(self, text, parent)
         self.setFocusPolicy(Qt.FocusPolicy.NoFocus)
 
@@ -178,65 +259,89 @@ class PenetrateLineEdit(MouseEventPenetrateMixin, QLineEdit):
         
         if index == -1:
             return
+        
         # 如果有下一个控件，则将焦点转移过去
-        if index + 1 < layout.count():
-            next_widget = layout.itemAt(index + 1).widget()
+        while index + 1 < layout.count():
+            index += 1
+            next_widget = layout.itemAt(index).widget()
+            # print(next_widget)
             if isinstance(next_widget, QLineEdit):
                 next_widget.setFocus()
-            else:
+                return
+            
+        # 没有下一个Edit
+        while parent != None:
+            try:
                 parent.editingFinishedEvent(event)
                 parent.setFocus()
+                break # 向上找到一个可以接受editingFinishedEvent的parent
+            except:
+                parent = parent.parent()
+                        
 
 class DraggableMixin:
     def __init__(self, clipped = False):
-        super().__init__()
 
         # 最小拖拽的距离
         self.DRAG_OFFSET_MINIMUM = 5
         
         # 存储鼠标按下的初始位置
-        self.dragging = False
-        self.drag_offset = QPoint()
+        self._dragging = False
+        self._drag_offset = QPoint()
         
         # 限制在屏幕内拖动
-        self.clipped = clipped
-
+        self._clipped = clipped
+        
+        # # 阴影部分的偏移
+        # self._shadow_offset = 0
+        # self._shadow_offset_switch = shadow_offset_switch
+        
     def mousePressEvent(self, event):
         if event.button() == Qt.LeftButton:
             # 记录鼠标按下时的窗口位置
-            self.dragging = True
-            self.drag_offset = event.globalPos() - self.pos()
-            self.first_drag_pos = event.globalPos()
-        else:
-            super().mousePressEvent(event)
+            self._dragging = True
+            self._drag_offset = event.globalPos() - self.pos()
+            self._first_drag_pos = event.globalPos()
+            
+            # 获取阴影部分的偏移
+            # if self._shadow_offset
+            # shadow_geo = self.frameGeometry()
+            # geo = self.geometry()
+            # self._shadow_offset = QSize(geo.x() - shadow_geo.x(), geo.y() - shadow_geo.y())
+
+        return super().mousePressEvent(event)
     
     def mouseMoveEvent(self, event):
-        if self.dragging:
+        if self._dragging:
             # 限制拖拽的最小距离
-            drag_offset = event.globalPos() - self.first_drag_pos
-            if abs(drag_offset.x()) <= self.DRAG_OFFSET_MINIMUM and abs(drag_offset.y()) <= self.DRAG_OFFSET_MINIMUM:
+            _drag_offset = event.globalPos() - self._first_drag_pos
+            if abs(_drag_offset.x()) <= self.DRAG_OFFSET_MINIMUM and abs(_drag_offset.y()) <= self.DRAG_OFFSET_MINIMUM:
                 return
-            self.first_drag_pos = QPoint(-100, -100)
+            self._first_drag_pos = QPoint(-100, -100) # 第一次拖动之后就不再限制
             
             # 合理的屏幕范围
-            self.screen_geometry = QApplication.primaryScreen().availableGeometry()
+            self._screen_geometry = QApplication.primaryScreen().availableGeometry()
             # 计算新的窗口位置
-            new_pos = event.globalPos() - self.drag_offset
-            if self.clipped == True:
+            new_pos = event.globalPos() - self._drag_offset
+            if self._clipped == True:
                 # 限制窗口位置在屏幕范围内
-                new_x = max(self.screen_geometry.left(), min(new_pos.x(), self.screen_geometry.right() - self.width()))
-                new_y = max(self.screen_geometry.top(), min(new_pos.y(), self.screen_geometry.bottom() - self.height()))
+                new_x = max(self._screen_geometry.left(),\
+                    min(new_pos.x(), \
+                    self._screen_geometry.right() - self.geometry().width()))
+                new_y = max(self._screen_geometry.top(),\
+                    min(new_pos.y(), \
+                    self._screen_geometry.bottom() - self.geometry().height()))
             else:
                 new_x, new_y = new_pos.x(), new_pos.y()
             self.move(new_x, new_y)  # 更新窗口位置
-        else:
-            super().mouseMoveEvent(event)
+        return super().mouseMoveEvent(event)
             
     def mouseReleaseEvent(self, event):
         if event.button() == Qt.LeftButton:
-            self.dragging = False
-        else:
-            super().mouseMoveEvent(event)
+            self._dragging = False
+        
+        # print(self.x(), self.y(), self.width(), self.geometry())
+        return super().mouseReleaseEvent(event)
             
 # 只作为基类
 # class DraggableMainWindow(DraggableMixin, QMainWindow):
@@ -251,180 +356,302 @@ class DraggableMixin:
 #     def __init__(self, clipped = False):
 #         DraggableMixin.__init__(self, clipped)
 
-class ShrinkWindow(DraggableMixin, QWidget):
-    def __init__(self):
-        super().__init__()
+class FadeoutMixin:
+    signal_fading = pyqtSignal(bool)
+    signal_fading_finished = pyqtSignal(bool)
+    
+    def __init__(self, fade_when_idle = True):
 
         # 可缩小窗口的初始化
         # 初始化状态变量
-        self.is_shrunk = False
-        self.last_move_time = QTime.currentTime()
-
-        # 设置定时器检查空闲状态
-        self.idle_timer = QTimer(self)
-        self.idle_timer.timeout.connect(self.check_idle)
-        self.idle_timer.start(1000)  # 每秒检查一次空闲状态
-
-        # 设置鼠标移动事件监听
-        self.setMouseTracking(True)
-
-        # 创建SimpleShrink对象
-        self.animation = SimpleShrink(self)
-        # 创建 QPropertyAnimation 对象
-        # self.shrink_animation = QPropertyAnimation(self, b"geometry")
-        # self.restore_animation = QPropertyAnimation(self, b"geometry")
+        self._is_faded = False
+        self._last_move_time = QTime.currentTime()
+        self._fade_when_idle = fade_when_idle
+        self._idle_span = 2000 # 空闲超时 2 秒
         
-    def set_mini_size(self, size: QSize):
-        '''重新设置迷你窗口大小'''
-        # min_hint = self.minimumSizeHint()
-        # if size.width() < min_hint.width() or size.height() < min_hint.height():
-            # print(f'mini窗口尺寸可能较小，期望尺寸：{(min_hint.width(), min_hint.height())}')
-        minimum = self.minimumSize()
-        mw = minimum.width()
-        mh = minimum.height()
-        w = max(size.width(), mw)
-        h = max(size.height(), mh)
-        self.mini_size = QSize(w, h)
-        self.animation.set_mini_size(self.mini_size) # 动画的大小也要设置
-        return size.width() >= mw and size.height() >= mh
+        if self._fade_when_idle:
+            # 设置定时器检查空闲状态
+            self.idle_timer = QTimer(self)
+            self.idle_timer.timeout.connect(self._check_idle)
+            self.idle_timer.start(1000)  # 每秒检查一次空闲状态
+
+            # 设置鼠标移动事件监听
+            self.setMouseTracking(True)
+            self._pressing = False
+
+        # 创建对象
+        self.fadeout_animation = QPropertyAnimation(self, b'windowOpacity')
+        self.fadeout_animation.setDuration(500)
+        self.fadeout_animation.setStartValue(1.0)
+        self.fadeout_animation.setEndValue(0.1)
+        self.fadeout_animation.setEasingCurve(QEasingCurve.InOutQuad)
+        # 信号与槽
+        self.signal_fading.connect(self.on_fadingout)
+        self.signal_fading_finished.connect(self.on_fade_finished)
     
-    def set_main_size(self, size: QSize):
-        minimum = self.minimumSize()
-        mw = minimum.width()
-        mh = minimum.height()
-        w = max(size.width(), mw)
-        h = max(size.height(), mh)
-        self.main_size = QSize(w, h)
-        self.animation.set_normal_size(self.main_size) # 动画的大小也要设置
-        return size.width() >= mw and size.height() >= mh
+    def set_init_opacity(self, opacity):
+        self.fadeout_animation.setStartValue(opacity)
     
-    def noshrink_heartbeat(self):
-        self.last_move_time = QTime.currentTime()
-    
+    def set_opacity_startend(self, opacity_start, opacity_end):
+        self.fadeout_animation.setStartValue(opacity_start)
+        self.fadeout_animation.setEndValue(opacity_end)
+        
     def mousePressEvent(self, event):
-        # self.shrink_animation.stop()
-        # self.restore_animation.stop()
-        self.animation.stop_animation()
+        # print('pressed')
+        if not self._fade_when_idle:
+            return super().mousePressEvent(event)
+        
+        # self.fadeout_animation.pause()
+        if event.button() == Qt.LeftButton:
+            self._pressing = True
         return super().mousePressEvent(event)
     
     def enterEvent(self, event):
         """鼠标进入窗口事件"""
-        self.noshrink_heartbeat()
-        if self.is_shrunk:
-            self.restore_window()
+        if not self._fade_when_idle:
+            super().enterEvent(event)
+            return 
+        
+        self._last_move_time = QTime.currentTime()
+        if self._is_faded:
+            self.toggle_animation(False)
+            self._is_faded = False
         super().enterEvent(event)
         
     def mouseMoveEvent(self, event):
         """处理鼠标移动事件"""
+        if not self._fade_when_idle:
+            return super().mouseMoveEvent(event)
+        
+        self._last_move_time = QTime.currentTime()
+        if self._is_faded:
+            self.toggle_animation(False)
+            self._is_faded = False
+        return super().mouseMoveEvent(event)
 
-        self.noshrink_heartbeat()
-        if self.is_shrunk:
-            self.restore_window()
-
-        super().mouseMoveEvent(event=event)
-
-    def check_idle(self):
+    def mouseReleaseEvent(self, event):
+        if not self._fade_when_idle:
+            return super().mouseReleaseEvent(event)
+        
+        if event.button() == Qt.LeftButton:
+            self._pressing = False
+        return super().mouseReleaseEvent(event)
+    
+    def _check_idle(self):
         """检查是否有空闲时间，如果空闲则缩小窗口"""
-        idle_threshold = 3  # 空闲超时 3秒
-        if self.last_move_time.msecsTo(QTime.currentTime()) > idle_threshold * 1000 and \
-            not self.is_shrunk and\
-            not self.geometry().contains(QCursor.pos()):
-            self.shrink_window()
-
-    def shrink_window(self):
-        """隐藏主窗口，显示迷你窗口"""
-        if self.is_shrunk:
+        if self.geometry().contains(QCursor.pos()) or self._pressing:
+            self._last_move_time = QTime.currentTime()
             return
         
-        # 合理的屏幕范围
-        self.screen_geometry = QApplication.primaryScreen().availableGeometry()
-        
-        # ...放弃自校正
-        # if not self.set_mini_size(self.mini_size): # 校正mini窗口尺寸
-        #     print(f'mini窗口设置过小, 请尝试调整layout边距或mini窗口尺寸, 最小尺寸为：{(self.minimumSize().width(), self.minimumSize().height())}')
+        if self._last_move_time.msecsTo(QTime.currentTime()) > self._idle_span and \
+          not self._is_faded:
+            self.toggle_animation(True)
+            self._is_faded = True
             
-        x = self.x()
-        y = self.y()
+    def toggle_animation(self, fading):
+        # self.fadeout_animation.setDuration(1000 if forward else 500)
+        self.fadeout_animation.setDirection(QPropertyAnimation.Forward if fading else QPropertyAnimation.Backward)
+        self.fadeout_animation.start()
+        self.signal_fading.emit(fading)
+        self.fadeout_animation.finished.connect(self._on_fadeout_animation_finished)
+    
+    def _on_fadeout_animation_finished(self):
+        self.signal_fading_finished.emit(self._is_faded)
+    
+    def on_fadingout(self, fading: bool):
+        ...
+    
+    def on_fade_finished(self, faded: bool):
+        ...
         
-        if x <= self.screen_geometry.left() and y <= self.screen_geometry.top():
-            self.animation.set_shrink_to(ShrinkTo.top_left)
-        elif x >= self.screen_geometry.right() - self.width() and y <= self.screen_geometry.top():
-            self.animation.set_shrink_to(ShrinkTo.top_right)
-        elif y <= self.screen_geometry.top():
-            self.animation.set_shrink_to(ShrinkTo.top_center)
-        
-        elif x <= self.screen_geometry.left() and y >= self.screen_geometry.bottom() - self.height():
-            self.animation.set_shrink_to(ShrinkTo.bottom_left)
-        elif x >= self.screen_geometry.right() - self.width() and y >= self.screen_geometry.bottom() - self.height():
-            self.animation.set_shrink_to(ShrinkTo.bottom_right)
-        elif y >= self.screen_geometry.bottom() - self.height():
-            self.animation.set_shrink_to(ShrinkTo.bottom_center)
-        
-        elif x <= self.screen_geometry.left():
-            self.animation.set_shrink_to(ShrinkTo.vcenter_left)
-        elif x >= self.screen_geometry.right() - self.width():
-            self.animation.set_shrink_to(ShrinkTo.vcenter_right)
-        else:
-            self.animation.set_shrink_to(ShrinkTo.center)
-        
-        self.animation.start_shrink_animation(1000)
-        
-        # 下面是不用simpleshrink实现的部分
-        # PERMISSIBLE_DISTANCE = 10
-        # if x <= self.screen_geometry.left() + PERMISSIBLE_DISTANCE:
-        #     mini_x = self.screen_geometry.left()
-        # elif x >= self.screen_geometry.right() - self.width() - PERMISSIBLE_DISTANCE:
-        #     mini_x = self.screen_geometry.right() - self.mini_size.width()
-        # else:
-        #     mini_x = int(x + (self.width() - self.mini_size.width()) / 2)
-        
-        # if y <= self.screen_geometry.top() + PERMISSIBLE_DISTANCE:
-        #     mini_y = self.screen_geometry.top()
-        # elif y >= self.screen_geometry.bottom() - self.height() - PERMISSIBLE_DISTANCE:
-        #     mini_y = self.screen_geometry.bottom() - self.mini_size.height()
-        # else:
-        #     mini_y = int(y + (self.height() - self.mini_size.height()) / 2)
-        
-        # # 设置动画的起始值和结束值
-        # start_rect = self.geometry()
-        # end_rect = QRect(mini_x, mini_y, self.mini_size.width(), self.mini_size.height())
-        # self.shrink_animation.setStartValue(start_rect)
-        # self.shrink_animation.setEndValue(end_rect)
-        # self.shrink_animation.setDuration(1000) # 设置动画持续时间
-        # self.shrink_animation.setEasingCurve(QEasingCurve.OutBounce) # 出弹跳动画
-        # self.shrink_animation.start()
-        
-        # self.preshrunk_geometry = QRect(x, y, self.main_size.width(), self.main_size.height())
-        self.is_shrunk = True
 
-    def restore_window(self):
-        """恢复主窗口"""
-        if not self.is_shrunk:
+from PyQt5.QtWidgets import (QApplication, QWidget, QVBoxLayout, QLabel, 
+                            QPushButton, QHBoxLayout, QGraphicsDropShadowEffect)
+from PyQt5.QtCore import Qt, QPoint, QRectF
+from PyQt5.QtGui import QColor, QPainterPath, QPainter, QPen
+
+class FrameWidget(PenetrateWidget):
+    def __init__(self, exframe_show, *args):
+        super().__init__(*args)
+        self._exframe_show = exframe_show
+    
+    def paintEvent(self, event):
+        if not self._exframe_show:
             return
-        # ...放弃自校正
-        # if not self.set_main_size(self.main_size): # 校正主窗口尺寸
-        #     print(f'主窗口设置过小, 请尝试调整layout边距或主窗口尺寸, 最小尺寸为：{(self.minimumSize().width(), self.minimumSize().height())}')
+        # 绘制自定义边框
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing)
         
-        self.animation.start_restore_animation(1000)
+        path = QPainterPath()
+        path.addRoundedRect(QRectF(self.rect().adjusted(1, 1, -1, -1)), 15, 15) # 留出阴影空间
         
-        # 下面是不使用simpleanimation的实现
-        # # 设置动画的起始值和结束值
-        # start_rect = self.geometry()
-        # end_rect = QRect(self.preshrunk_geometry)
-        # self.restore_animation.setStartValue(start_rect)
-        # self.restore_animation.setEndValue(end_rect)
-        # self.restore_animation.setDuration(1000) # 设置动画持续时间
-        # self.restore_animation.setEasingCurve(QEasingCurve.OutElastic) # 出弹性动画
-        # self.restore_animation.start()
+        # 绘制背景边框
+        painter.setPen(QPen(QColor("#E0E0E0"), 2))
+        painter.drawPath(path)
         
-        self.is_shrunk = False
+class StylishFramelessWindow(DraggableMixin, QWidget):
+    def __init__(self, clipped, outside_margin, inside_margin, parent = None, exframe_show = True):
+        QWidget.__init__(self, parent)
+        DraggableMixin.__init__(self, clipped=clipped)
+        self._outside_margin = outside_margin
+        self._inside_margin = inside_margin
+        self._shadow_radius = 25
+        self._exframe_show = exframe_show
+        self.setupWindow()
+        self.setupUI_StylishFrame()
+        self.setupStyle()
 
-    def closeEvent(self, event):
-        # 在关闭前显示提示框
-        # print("Window is about to be closed.")
-        QApplication.quit()  # 强制退出应用程序
+    def setupWindow(self):
+        # 设置窗口标志
+        self.setWindowFlags(
+            Qt.FramelessWindowHint |          # 无边框
+            Qt.WindowStaysOnTopHint |         # 始终置顶
+            Qt.Tool |                         # 工具窗口
+            Qt.MSWindowsFixedSizeDialogHint   # 固定大小
+        )
+        self.setAttribute(Qt.WA_TranslucentBackground)  # 透明背景
+        # self.setMinimumSize(400, 300)
 
-    def destroyEvent(self, event):
-        print("Window is being destroyed.")
-        # 执行一些清理操作，比如释放资源或保存状态
-        event.accept()
+    def setupUI_StylishFrame(self):
+        # 边框层
+        frame_layout = QVBoxLayout(self)
+        frame_layout.setContentsMargins(*([self._shadow_radius] * 4))
+        
+        self._frame_widget = FrameWidget(self._exframe_show, self)
+        self._frame_widget.setObjectName("frameWidget")
+        
+        # 主布局（保留边距用于显示阴影）
+        main_layout = QVBoxLayout(self._frame_widget)
+        main_layout.setContentsMargins(*([self._inside_margin] * 4))
+        
+        # 内容容器（实际显示区域）
+        self._content_widget = PenetrateWidget()
+        self._content_widget.setObjectName("contentWidget")
+        # self._content_layout = QVBoxLayout(self._content_widget)
+        
+        # # 标题栏
+        # title_bar = QWidget()
+        # title_bar.setFixedHeight(40)
+        # title_bar.setObjectName("titleBar")
+        # title_layout = QHBoxLayout(title_bar)
+        # title_layout.setContentsMargins(10, 0, 10, 0)
+        
+        # self.title_label = QLabel("自定义窗口")
+        # close_btn = QPushButton("×")
+        # close_btn.setFixedSize(30, 30)
+        # close_btn.clicked.connect(self.close)
+        
+        # title_layout.addWidget(self.title_label)
+        # title_layout.addStretch()
+        # title_layout.addWidget(close_btn)
+        
+        # 内容区域
+        # self._content_layout.addWidget(title_bar)
+        # self._content_layout.addWidget(QLabel("主内容区域", self))
+        # self._content_layout.addStretch()
+        
+        main_layout.addWidget(self._content_widget)
+        
+        frame_layout.addWidget(self._frame_widget)
+        
+    @property
+    def form(self):
+        return self._content_widget
+
+    def setupStyle(self):
+        # 窗口样式表
+        self.setStyleSheet("""
+            #contentWidget {
+                background: #FFFFFF;
+                border-radius: 12px;
+            }
+        """)
+        
+        # 添加阴影效果
+        shadow = QGraphicsDropShadowEffect()
+        shadow.setBlurRadius(self._shadow_radius)
+        shadow.setColor(QColor(0, 0, 0, 150))
+        shadow.setOffset(0, 0)
+        self.findChild(QWidget, "frameWidget").setGraphicsEffect(shadow)
+        # self.findChild(QWidget, "contentWidget").setGraphicsEffect(shadow)
+        # self.setGraphicsEffect(shadow)
+
+    def closeEvent(self, a0):
+        QApplication.quit()
+        return super().closeEvent(a0)
+
+    def geometry(self):
+        frame_geo = self._frame_widget.geometry()
+        frame_geo.adjust(-self._outside_margin, -self._outside_margin, self._outside_margin, self._outside_margin)
+        return QRect(self.mapToGlobal(frame_geo.topLeft()), frame_geo.size())
+    
+    def _true_pos(self):
+        return QWidget.pos(self)
+    
+    def _true_size(self):
+        return QWidget.size(self)
+    
+    def _true_geometry(self):
+        return QWidget.geometry(self)
+    
+    def x(self):
+        return self.mapToGlobal(self._frame_widget.pos()).x() - self._outside_margin
+        # return self._frame_widget.x() - self._outside_margin
+    
+    def y(self):
+        return self.mapToGlobal(self._frame_widget.pos()).y() - self._outside_margin
+        # return self._frame_widget.y() - self._outside_margin
+    
+    def width(self):
+        return self._frame_widget.width() + self._outside_margin * 2
+    
+    def height(self):
+        return self._frame_widget.height() + self._outside_margin * 2
+    
+    def pos(self):
+        return QPoint(self.x(), self.y())
+    
+    def size(self):
+        return QSize(self.width(), self.height())
+    
+    @typing.overload
+    def move(self, x: int, y: int): ...
+    @typing.overload
+    def move(self, a0: QPoint): ...
+    def move(self, *args):
+        if len(args) == 2:
+            x, y = args
+        elif len(args) == 1:
+            a0 = args[0]
+            x = a0.x()
+            y = a0.y()
+        else:
+            raise Exception(f'Invalid arguments in {self.__class__.__name__}.move()')
+        x = x - self._shadow_radius + self._outside_margin # x = x - (self._true_x() - self._frame_widget.x())
+        y = y - self._shadow_radius + self._outside_margin
+        QWidget.move(self, QPoint(x, y))
+    
+    @typing.overload
+    def setGeometry(self, x: int, y: int, w: int, h: int): ...
+    @typing.overload
+    def setGeometry(self, a0: QRect): ...
+    def setGeometry(self, *args):
+        if len(args) == 4:
+            x, y, w, h = args
+            # _expected_rect = QRect(x, y, w, h)
+        elif len(args) == 1:
+            _expected_rect = args[0]
+            x, y, w, h = _expected_rect.x(), _expected_rect.y(), _expected_rect.width(), _expected_rect.height()
+        else:
+            raise Exception(f'Invalid arguments in {self.__class__.__name__}.setGeometry()')
+        x += - self._shadow_radius + self._outside_margin
+        y += - self._shadow_radius + self._outside_margin
+        # w += (self._shadow_radius - self._outside_margin) * 2
+        # h += ( - self._outside_margin) 
+        # _expected_rect.adjust(- self._shadow_radius + self._outside_margin, - self._shadow_radius + self._outside_margin, \
+        #    self._shadow_radius - self._outside_margin, self._shadow_radius - self._outside_margin)
+        # QWidget.setGeometry(self, _expected_rect)
+        QWidget.setGeometry(self, x, y, w, h)
+
+    def _shadow_reduce_calculate_size(self, size: QSize):
+        return size - QSize((self._shadow_radius - self._outside_margin) * 2, (self._shadow_radius - self._outside_margin) * 2)

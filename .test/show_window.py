@@ -1,18 +1,13 @@
-# conda env etc
-# last edit on 25/1/4 18:41
 
 import sys
-from PyQt5.QtCore import QTimer, QTime, Qt, QPoint, QEvent, QPropertyAnimation, QEasingCurve, \
-    QRect, QSize
-from PyQt5.QtWidgets import QApplication, QWidget, QLabel, QVBoxLayout, QMainWindow, \
-    QGridLayout, QPushButton, QLineEdit
-from PyQt5.QtGui import QCursor
-import typing
-import win32.win32api as win32api
-import win32.lib.win32con as win32con
+from PyQt5.QtCore import *
+from PyQt5.QtWidgets import *
+from PyQt5.QtGui import *
+import win32api
+import win32con
 
-from CustomWidgets import *
-from ui import Ui_Form 
+from customwidgets import *
+from ui.widget import Ui_Form 
 
 def seconds_to_hms(seconds):
     # 使用 divmod 计算小时、分钟和秒数
@@ -21,15 +16,18 @@ def seconds_to_hms(seconds):
     # 返回格式化后的字符串
     return f"{int(hours):02}:{int(minutes):02}:{int(seconds):02}"
 
-class WorkRelaxTimerWindow(ShrinkWindow, Ui_Form):
+class WorkRelaxTimerWindow(DraggableMixin, QWidget, Ui_Form):
     def __init__(self):
-        super().__init__()
+        super().__init__(clipped=True)
+        # ui框架
+        self.setupUi(self)
         
         # 初始设置窗口大小、标题等
         self.setWindowTitle("WorkRelaxTimerWindow")
-        self.set_mini_size(QSize(150, 50))
-        self.set_main_size(QSize(300, 150))
-        self.setGeometry(0, 0, self.main_size.width(), self.main_size.height())  # 初始窗口大小
+        # self.set_mini_size(QSize(150, 50))
+        # self.set_main_size(QSize(300, 150))
+        minimum = self.minimumSize()
+        self.setGeometry(0, 0, minimum.width(), minimum.height())  # 初始窗口大小
         self.setStyleSheet("background-color: white;")
         self.setWindowFlags(Qt.FramelessWindowHint |
                             Qt.WindowStaysOnTopHint |
@@ -37,9 +35,6 @@ class WorkRelaxTimerWindow(ShrinkWindow, Ui_Form):
                             Qt.MSWindowsFixedSizeDialogHint)
         
         self.setFocus()
-        
-        # ui框架
-        self.setupUI(self)
         
         # 子控件事件连接
         self.work_button.clicked.connect(self.work_button_clicked)
@@ -133,7 +128,6 @@ class WorkRelaxTimerWindow(ShrinkWindow, Ui_Form):
         # 双击清零退出
         self.closeEvent(None)
     
-    
     def eventFilter(self, obj, event):
         if obj == self.clear_button:
             if event.type() == event.MouseButtonDblClick:
@@ -162,23 +156,11 @@ class WorkRelaxTimerWindow(ShrinkWindow, Ui_Form):
         QTimer.singleShot(0, simulate_click)
         return super().showEvent(a0)
     
-    def shrink_window(self):
-        # self.relax_edit_shrink.start_shrink_animation(1000)
-        # self.work_edit_shrink.start_shrink_animation(1000)
-        # self.clear_button_shrink.start_shrink_animation(1000)
-        if self.relax_timer.isActive():
-            self.work_button_shrink.start_shrink_animation()
-            self.stop_button_shrink.start_shrink_animation()
-            self.changeLayout_RelaxMini(self)
-        elif self.work_timer.isActive():
-            self.relax_button_shrink.start_shrink_animation()
-            self.stop_button_shrink.start_shrink_animation()
-            self.changeLayout_WorkMini(self)
-        else:
-            self.work_button_shrink.start_shrink_animation()
-            self.relax_button_shrink.start_shrink_animation()
-            self.changeLayout_BjtimeMini(self)
-        super().shrink_window()
+    def closeEvent(self, event):
+        # 在关闭前显示提示框
+        # print("Window is about to be closed.")
+        QApplication.quit()  # 强制退出应用程序
+
     
 # 主函数
 if __name__ == "__main__":
