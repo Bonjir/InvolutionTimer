@@ -226,6 +226,7 @@ class WorkRelaxTimerWindow(FadeoutMixin, StylishFramelessWindow, Ui_Form):
         self.setWindowTitle("WorkRelaxTimerWindow")
         minimum = self.minimumSizeHint()
         self.setGeometry(0, 0, minimum.width(), minimum.height())  # 初始窗口大小
+        self.setWindowOpacity(0.9) # 设为全透明 
         self.set_opacity_startend(0.90, 0)
         self.setFocus()
         
@@ -348,7 +349,7 @@ class WorkRelaxTimerWindow(FadeoutMixin, StylishFramelessWindow, Ui_Form):
             initial_pos = self.pos()
             cursorpos = QCursor.pos()
             # win32api模拟点击
-            win32api.SetCursorPos((initial_pos.x(), initial_pos.y()))
+            win32api.SetCursorPos((initial_pos.x() + 5, initial_pos.y() + 5))
             win32api.mouse_event(win32con.MOUSEEVENTF_LEFTDOWN, 0, 0)
             win32api.mouse_event(win32con.MOUSEEVENTF_LEFTUP, 0, 0)
             win32api.SetCursorPos((cursorpos.x(), cursorpos.y()))
