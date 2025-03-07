@@ -12,11 +12,11 @@
 
 ### 效果展示
 
-![](https://github.com/Bonjir/WorkRelaxTimer/.github/(1).png)![](https://github.com/Bonjir/WorkRelaxTimer/.github/(2).png)![](https://github.com/Bonjir/WorkRelaxTimer/.github/(3).png)![](https://github.com/Bonjir/WorkRelaxTimer/.github/(4).png)
+![](https://github.com/Bonjir/WorkRelaxTimer/tree/main/.github/(1).png)![](https://github.com/Bonjir/WorkRelaxTimer/tree/main/.github/(2).png)![](https://github.com/Bonjir/WorkRelaxTimer/tree/main/.github/(3).png)![](https://github.com/Bonjir/WorkRelaxTimer/tree/main/.github/(4).png)
 
 ### TODO
 
-- [x] mini窗口label的显示，哪个启用显示哪个，然后双击锁定
+- [x] ~~mini窗口label的显示，哪个启用显示哪个，然后双击锁定~~
 
 - [ ] tooltip
 
@@ -25,9 +25,9 @@
 
 ### BUG
 
-- [x] 拖拽mini窗口后mini消失_dragging没有解除，需要再次在主窗口点击才能解除
+- [x] ~~拖拽mini窗口后mini消失_dragging没有解除，需要再次在主窗口点击才能解除~~
 
-- [x] miniwindow的layout更新后位置及大小出错问题
+- [x] ~~miniwindow的layout更新后位置及大小出错问题~~
 
-- [x] edit控件回车失效问题
+- [x] ~~edit控件回车失效问题~~
 
