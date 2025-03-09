@@ -82,11 +82,18 @@ class AnimatedButtonMixin:
                 background-color: {self._bg_color.name()};
                 color: {self._text_color.name()};
                 border: 2px solid {self._bg_press_color.name()};
+                font-size: 9pt;
                 padding: 10px;
                 border-radius: 10px;
             }}
         """)
         
+        # 获取默认字体大小
+        # default_font = self.font()
+        # default_size = default_font.pointSize()  # 单位：pt
+        # default_size_px = default_font.pixelSize()  # 单位：px（可能为 -1，取决于系统）
+        # print(f"默认字体大小：{default_size}pt 或约 {default_size_px}px")
+
     def _toggle_hover_animation(self, forward):
         self._hover_animation.setDirection(QPropertyAnimation.Forward if forward else QPropertyAnimation.Backward)
         self._hover_animation.start()

@@ -1,13 +1,15 @@
 
 # TODO
-# - 拖拽mini窗口后mini消失_dragging没有解除，需要再次在主窗口点击才能解除 v
 # - mini窗口label的显示，哪个启用显示哪个，然后双击锁定 v
 # - tooltip
 # - 右键列表
+# - 双击和单击分离开
 
 # BUG
 # - miniwindow的layout更新后位置及大小出错问题 v
 # - edit控件回车失效问题 v
+# - 拖拽mini窗口后mini消失_dragging没有解除，需要再次在主窗口点击才能解除 v
+# - 在animatedbutton类中添加font和(fixedsize)的stylesheet v
 
 import sys
 from PyQt5.QtCore import *
@@ -31,6 +33,7 @@ class Ui_MiniWindow:
                 background-color: {'white'};
                 color: {work_color.name()};
                 border: 2px solid {work_color.name()};
+                font-size: 9pt;
                 padding: 5px;
                 border-radius: 10px;
             """)
@@ -46,6 +49,7 @@ class Ui_MiniWindow:
                 background-color: {'white'};
                 color: {relax_color.name()};
                 border: 2px solid {relax_color.name()};
+                font-size: 9pt;
                 padding: 5px;
                 border-radius: 10px;
             """)
@@ -59,6 +63,7 @@ class Ui_MiniWindow:
                 background-color: {'white'};
                 color: {bjtime_color.name()};
                 border: 2px solid {bjtime_color.name()};
+                font-size: 9pt;
                 padding: 5px;
                 border-radius: 10px;
             """)
