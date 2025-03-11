@@ -1,15 +1,21 @@
 
 # TODO
 # - mini窗口label的显示，哪个启用显示哪个，然后双击锁定 v
+# - 检测程序是否正常关闭并恢复 v 但没有测试
+# - 存储每日卷摆数据
 # - tooltip
 # - 右键列表
 # - 双击和单击分离开
+# - 每日数据统计
+# - 机器学习判断卷摆(时间、日程、息屏等信息判断息屏时是否在学习、吃饭、娱乐)
+# - 日志
 
 # BUG
 # - miniwindow的layout更新后位置及大小出错问题 v
 # - edit控件回车失效问题 v
 # - 拖拽mini窗口后mini消失_dragging没有解除，需要再次在主窗口点击才能解除 v
 # - 在animatedbutton类中添加font和(fixedsize)的stylesheet v
+# - 长时间休眠后btn和label字体改变（添加每秒/从休眠中唤醒时 检测字体）
 
 import sys
 from PyQt5.QtCore import *
@@ -21,6 +27,7 @@ import win32con
 from customwidgets import *
 from ui.widget import Ui_Form 
 from ui.palette import Palette
+from utils import CrashHandler
 
 class Ui_MiniWindow:
     def setupUi(self, Form, *args):
@@ -262,6 +269,16 @@ class WorkRelaxTimerWindow(FadeoutMixin, StylishFramelessWindow, Ui_Form):
         self.update_bjtime() # 设置的时候先执行一次
         self.bjtime_timer.start(1000)  # 每秒更新时间
         
+        self.self_check_timer = QTimer(self)
+        self.self_check_timer.timeout.connect(self.self_check)
+        self.self_check_timer.start(60*1000) # 每分钟自检一次
+        
+        # 异常处理
+        self._crash_handler = CrashHandler("WorkRelaxTimer")
+        self._crash_handler.set_state_func(self.state_func)
+        crash_state = self._crash_handler.check_previous_crash()
+        self.restore_from_crash(crash_state)
+        self._crash_handler.create_running_flag()
         
     def _seconds_to_hms(self, seconds):
         # 使用 divmod 计算小时、分钟和秒数
@@ -363,6 +380,7 @@ class WorkRelaxTimerWindow(FadeoutMixin, StylishFramelessWindow, Ui_Form):
     
     def closeEvent(self, event):
         # 在关闭前显示提示框
+        self._crash_handler.clean_exit()
         QApplication.quit()  # 强制退出应用程序
 
     def on_fadingout(self, fading: bool):
@@ -394,6 +412,32 @@ class WorkRelaxTimerWindow(FadeoutMixin, StylishFramelessWindow, Ui_Form):
         #     self.mini.hide()
         
         return super().on_fade_finished(faded)
+    
+    def state_func(self):
+        return {'work':self._work_time_sec, 'relax':self._relax_time_sec}
+    
+    def restore_from_crash(self, state):
+        if state == None or state == {}:
+            return True
+        try:
+            self._work_time_sec = state['work']
+            self._relax_time_sec = state['relax']
+        except:
+            print('恢复加载失败')
+            return False
+        self._work_time_sec = max(-1, self._work_time_sec - 1)
+        self._relax_time_sec = max(-1, self._relax_time_sec - 1)
+        self.update_worktime()
+        self.update_relaxtime()
+        return True
+    
+    def self_check(self):
+        """
+        执行一些自检功能，比如检测字体是否正常、自动保存状态。
+        """
+        # TODO 检测字体
+        ...
+        self._crash_handler.save_app_state()
     
 # 主函数
 if __name__ == "__main__":
