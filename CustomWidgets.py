@@ -8,9 +8,49 @@ from PyQt5.QtGui import QCursor, QColor, QPainterPath
 import typing
 
 from ui.palette import Palette
+from utils import Logger
+
+_logger = Logger(__name__)
+
+class SeparateDoubleClickMixin:
+    singleClicked = pyqtSignal()
+    doubleClicked = pyqtSignal()
+    
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs) # 传递所有参数
+        self.__click_state = 0
+        self.__click_timer = QTimer()
+        self.__click_timer.setSingleShot(True)  # 单次触发定时器
+        self.__click_timer.timeout.connect(self._handle_click)
+
+    def mouseReleaseEvent(self, event):
+        if event.button() == Qt.LeftButton:
+            if self.__click_state == 0:
+                self.__click_state = 1
+                if not self.__click_timer.isActive():
+                    self.__click_timer.start(200)  # 设置双击检测间隔为250毫秒
+                    self.__click_event = event
+        super().mouseReleaseEvent(event)
+
+    def _handle_click(self):
+        if self.__click_state == 1:
+            self.mouseSingleClickEvent(self.__click_event)
+        # elif self.__click_count >= 2:
+        #     self.mouseDoubleClickEvent(self.__click_event)
+        self.__click_state = 0  # 重置计数器
+
+    def mouseSingleClickEvent(self, event):
+        ...
+        self.singleClicked.emit()
+
+    def mouseDoubleClickEvent(self, event):
+        self.__click_state = 2
+        self.__click_event = event
+        self.doubleClicked.emit()
+        return super().mouseDoubleClickEvent(event)
 
 class AnimatedButtonMixin:
-    doubleClicked = pyqtSignal()
+    # doubleClicked = pyqtSignal()
     def __init__(self, *args):
         super().__init__(*args)  # 跳过所有参数
         self._bg_basic_color = Palette.white
@@ -112,8 +152,8 @@ class AnimatedButtonMixin:
         self._toggle_press_animation(forward=False)
         return super().mouseReleaseEvent(e)
     
-    def mouseDoubleClickEvent(self, e):
-        self.doubleClicked.emit()
+    # def mouseDoubleClickEvent(self, e):
+    #     self.doubleClicked.emit()
     
     def set_bg_color(self, basic, hover, press, toggled = None):
         self._bg_basic_color = basic
@@ -146,7 +186,7 @@ class AnimatedButtonMixin:
     def toggled(self):
         return self._toggled
     
-class AnimatedPushButton(AnimatedButtonMixin, QPushButton):
+class AnimatedPushButton(AnimatedButtonMixin, SeparateDoubleClickMixin, QPushButton):
     def __init__(self, *args):
         super().__init__(*args) # 向上传递所有参数
 

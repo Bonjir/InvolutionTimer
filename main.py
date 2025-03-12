@@ -1,21 +1,21 @@
 
 # TODO
 # - mini窗口label的显示，哪个启用显示哪个，然后双击锁定 v
-# - 检测程序是否正常关闭并恢复 v 但没有测试
+# - 检测程序是否正常关闭并恢复 v 
+# - 日志 v
+# - 双击和单击分离开 v
 # - 存储每日卷摆数据
 # - tooltip
 # - 右键列表
-# - 双击和单击分离开
 # - 每日数据统计
 # - 机器学习判断卷摆(时间、日程、息屏等信息判断息屏时是否在学习、吃饭、娱乐)
-# - 日志
 
 # BUG
 # - miniwindow的layout更新后位置及大小出错问题 v
 # - edit控件回车失效问题 v
 # - 拖拽mini窗口后mini消失_dragging没有解除，需要再次在主窗口点击才能解除 v
 # - 在animatedbutton类中添加font和(fixedsize)的stylesheet v
-# - 长时间休眠后btn和label字体改变（添加每秒/从休眠中唤醒时 检测字体）
+# - 长时间休眠后btn和label字体改变（添加每秒/从休眠中唤醒时 检测字体） v
 
 import sys
 from PyQt5.QtCore import *
@@ -27,7 +27,9 @@ import win32con
 from customwidgets import *
 from ui.widget import Ui_Form 
 from ui.palette import Palette
-from utils import CrashHandler
+from utils import CrashHandler, Logger
+
+_logger = Logger(__name__)
 
 class Ui_MiniWindow:
     def setupUi(self, Form, *args):
@@ -110,7 +112,7 @@ class MiniWindow(MouseEventPenetrateMixin, FadeoutMixin, StylishFramelessWindow,
                             Qt.Tool |
                             Qt.MSWindowsFixedSizeDialogHint)
         self.setWindowOpacity(0) # 设为全透明 
-        self.set_opacity_startend(0.90, 0)
+        self.set_opacity_startend(0.75, 0)
         self.setMouseTracking(True)
         for child in self.findChildren(QWidget):
             child.setMouseTracking(True)
@@ -243,13 +245,13 @@ class WorkRelaxTimerWindow(FadeoutMixin, StylishFramelessWindow, Ui_Form):
         self.setFocus()
         
         # 子控件事件连接
-        self.work_button.clicked.connect(self.on_work_button_clicked)
+        self.work_button.singleClicked.connect(self.on_work_button_clicked)
         self.work_button.doubleClicked.connect(self.on_work_button_doubleClicked)
-        self.relax_button.clicked.connect(self.on_relax_button_clicked)
+        self.relax_button.singleClicked.connect(self.on_relax_button_clicked)
         self.relax_button.doubleClicked.connect(self.on_relax_button_doubleClicked)
-        self.stop_button.clicked.connect(self.on_stop_button_clicked)
+        self.stop_button.singleClicked.connect(self.on_stop_button_clicked)
         self.stop_button.doubleClicked.connect(self.on_stop_button_doubleClicked)
-        self.clear_button.clicked.connect(self.on_clear_button_clicked)
+        self.clear_button.singleClicked.connect(self.on_clear_button_clicked)
         self.clear_button.doubleClicked.connect(self.on_clear_button_doubleClicked)
         # self.clear_button.installEventFilter(self)
         
@@ -274,11 +276,12 @@ class WorkRelaxTimerWindow(FadeoutMixin, StylishFramelessWindow, Ui_Form):
         self.self_check_timer.start(60*1000) # 每分钟自检一次
         
         # 异常处理
-        self._crash_handler = CrashHandler("WorkRelaxTimer")
+        self._crash_handler = CrashHandler()
         self._crash_handler.set_state_func(self.state_func)
         crash_state = self._crash_handler.check_previous_crash()
         self.restore_from_crash(crash_state)
         self._crash_handler.create_running_flag()
+        
         
     def _seconds_to_hms(self, seconds):
         # 使用 divmod 计算小时、分钟和秒数
@@ -327,6 +330,13 @@ class WorkRelaxTimerWindow(FadeoutMixin, StylishFramelessWindow, Ui_Form):
         current_time = QTime.currentTime().toString("hh:mm:ss")
         self.stop_button.setText(current_time)
         self.signal_bjtime_update.emit(current_time)
+        
+        # 为了刷新一下控件防止字体变化
+        self._work_time_sec -= 1
+        self.update_worktime()
+        self._relax_time_sec -= 1
+        self.update_relaxtime()
+        
         
     def on_clear_button_clicked(self):
         # 初始化卷摆时间, 设为-1是因为第一次执行会+1
@@ -423,7 +433,7 @@ class WorkRelaxTimerWindow(FadeoutMixin, StylishFramelessWindow, Ui_Form):
             self._work_time_sec = state['work']
             self._relax_time_sec = state['relax']
         except:
-            print('恢复加载失败')
+            _logger.warning('恢复加载失败')
             return False
         self._work_time_sec = max(-1, self._work_time_sec - 1)
         self._relax_time_sec = max(-1, self._relax_time_sec - 1)

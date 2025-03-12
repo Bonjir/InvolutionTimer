@@ -12,24 +12,22 @@
 
 ### 效果展示
 
-<img src="https://github.com/Bonjir/WorkRelaxTimer/blob/main/.github/(1).png" width="50%" height="50%" />
+<img src="https://github.com/Bonjir/WorkRelaxTimer/blob/main/.github/(1).jpg" width="50%" height="50%" />
 
-<img src="https://github.com/Bonjir/WorkRelaxTimer/blob/main/.github/(2).png" width="50%" height="50%" />
+<img src="https://github.com/Bonjir/WorkRelaxTimer/blob/main/.github/(2).jpg" width="50%" height="50%" />
 
-<img src="https://github.com/Bonjir/WorkRelaxTimer/blob/main/.github/(3).png" width="50%" height="50%" />
+<img src="https://github.com/Bonjir/WorkRelaxTimer/blob/main/.github/(3).jpg" width="50%" height="50%" />
 
-<img src="https://github.com/Bonjir/WorkRelaxTimer/blob/main/.github/(4).png" width="50%" height="50%" />
+<img src="https://github.com/Bonjir/WorkRelaxTimer/blob/main/.github/(4).jpg" width="50%" height="50%" />
 
 ### TODO
 
 - [x] ~~mini窗口label的显示，哪个启用显示哪个，然后双击锁定~~
-
 - [x] ~~崩溃与异常退出的处理和恢复~~
-
-- [ ] tooltip
-
-- [ ] 右键列表
+- [x] ~~日志记录~~
 - [ ] 自动保存卷摆时间数据
+- [ ] tooltip
+- [ ] 右键列表
 
 ### BUG
 
@@ -40,4 +38,8 @@
 - [x] ~~edit控件回车失效问题~~
 
 - [x] ~~解决莫名其妙按钮字体变大的问题~~
+
+- [x] ~~解决电脑休眠后字体改变问题~~
+
+- [x] ~~双击和单击分离开~~
 
