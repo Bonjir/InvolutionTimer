@@ -4,7 +4,7 @@ from PyQt5.QtCore import *
 from PyQt5.QtGui import *
 import typing
 
-from customwidgets import DraggableMixin, PenetrateWidget
+from widgets import DraggableMixin, PenetrateWidget
 from ui.widget import Ui_Form 
 
 class FrameWidget(PenetrateWidget):

@@ -14,7 +14,7 @@ from PyQt5 import QtCore, QtGui, QtWidgets
 class Ui_Form(object):
     def setupUi(self, Form):
         Form.setObjectName("Form")
-        Form.resize(170, 107)
+        Form.resize(170, 111)
         Form.setWindowOpacity(0.9)
         self.gridLayout = QtWidgets.QGridLayout(Form)
         self.gridLayout.setContentsMargins(8, 8, 8, 8)
@@ -22,6 +22,7 @@ class Ui_Form(object):
         self.gridLayout.setObjectName("gridLayout")
         self.work_button = PenetrateAnimatedButton(Form)
         self.work_button.setFocusPolicy(QtCore.Qt.NoFocus)
+        self.work_button.setProperty("parent_draggable", True)
         self.work_button.setObjectName("work_button")
         self.gridLayout.addWidget(self.work_button, 0, 0, 1, 1)
         self.work_edit = PenetrateLineEdit(Form)
@@ -33,6 +34,7 @@ class Ui_Form(object):
         self.gridLayout.addWidget(self.work_edit, 0, 1, 1, 1)
         self.relax_button = PenetrateAnimatedButton(Form)
         self.relax_button.setFocusPolicy(QtCore.Qt.NoFocus)
+        self.relax_button.setProperty("parent_draggable", True)
         self.relax_button.setObjectName("relax_button")
         self.gridLayout.addWidget(self.relax_button, 1, 0, 1, 1)
         self.relax_edit = PenetrateLineEdit(Form)
@@ -43,10 +45,12 @@ class Ui_Form(object):
         self.gridLayout.addWidget(self.relax_edit, 1, 1, 1, 1)
         self.stop_button = PenetrateAnimatedButton(Form)
         self.stop_button.setFocusPolicy(QtCore.Qt.NoFocus)
+        self.stop_button.setProperty("parent_draggable", True)
         self.stop_button.setObjectName("stop_button")
         self.gridLayout.addWidget(self.stop_button, 2, 0, 1, 1)
         self.clear_button = PenetrateAnimatedButton(Form)
         self.clear_button.setFocusPolicy(QtCore.Qt.NoFocus)
+        self.clear_button.setProperty("parent_draggable", True)
         self.clear_button.setObjectName("clear_button")
         self.gridLayout.addWidget(self.clear_button, 2, 1, 1, 1)
 
@@ -60,7 +64,8 @@ class Ui_Form(object):
         self.relax_button.setText(_translate("Form", "PushButton"))
         self.stop_button.setText(_translate("Form", "PushButton"))
         self.clear_button.setText(_translate("Form", "PushButton"))
-from customwidgets import PenetrateAnimatedButton, PenetrateLineEdit
+        
+from widgets import PenetrateAnimatedButton, PenetrateLineEdit
 
 
 if __name__ == "__main__":

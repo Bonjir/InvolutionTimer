@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>170</width>
-    <height>107</height>
+    <height>111</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -40,6 +40,9 @@
      <property name="text">
       <string>PushButton</string>
      </property>
+     <property name="parent_draggable" stdset="0">
+      <bool>true</bool>
+     </property>
     </widget>
    </item>
    <item row="0" column="1">
@@ -62,6 +65,9 @@ border-radius: 10px;</string>
      <property name="text">
       <string>PushButton</string>
      </property>
+     <property name="parent_draggable" stdset="0">
+      <bool>true</bool>
+     </property>
     </widget>
    </item>
    <item row="1" column="1">
@@ -81,6 +87,9 @@ border-radius: 10px;</string>
      <property name="text">
       <string>PushButton</string>
      </property>
+     <property name="parent_draggable" stdset="0">
+      <bool>true</bool>
+     </property>
     </widget>
    </item>
    <item row="2" column="1">
@@ -90,6 +99,9 @@ border-radius: 10px;</string>
      </property>
      <property name="text">
       <string>PushButton</string>
+     </property>
+     <property name="parent_draggable" stdset="0">
+      <bool>true</bool>
      </property>
     </widget>
    </item>

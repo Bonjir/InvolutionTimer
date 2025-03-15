@@ -1,4 +1,4 @@
-from customwidgets import *
+from widgets import *
 from PyQt5.QtWidgets import *
 
 class MainWindow(DraggableMixin, QMainWindow):

@@ -10,7 +10,7 @@ import typing
 from ui.palette import Palette
 from utils import Logger
 
-_logger = Logger(__name__)
+_logger = Logger(__name__) # 不要删它
 
 class SeparateDoubleClickMixin:
     singleClicked = pyqtSignal()
@@ -27,10 +27,17 @@ class SeparateDoubleClickMixin:
         if event.button() == Qt.LeftButton:
             if self.__click_state == 0:
                 self.__click_state = 1
+                # 检查父窗口是否在拖拽
+                if hasattr(self.ancestor(), 'dragging') and self.ancestor().dragging():
+                    self.__click_state = 0  # 重置状态
+                    event.accept()
+                    return super().mouseReleaseEvent(event)
+                
+                # 如果不在拖拽且定时器未激活，则启动定时器准备触发单击
                 if not self.__click_timer.isActive():
-                    self.__click_timer.start(200)  # 设置双击检测间隔为250毫秒
+                    self.__click_timer.start(200)  # 设置双击检测间隔为200毫秒
                     self.__click_event = event
-        super().mouseReleaseEvent(event)
+        return super().mouseReleaseEvent(event)
 
     def _handle_click(self):
         if self.__click_state == 1:
@@ -40,7 +47,6 @@ class SeparateDoubleClickMixin:
         self.__click_state = 0  # 重置计数器
 
     def mouseSingleClickEvent(self, event):
-        ...
         self.singleClicked.emit()
 
     def mouseDoubleClickEvent(self, event):
@@ -51,8 +57,8 @@ class SeparateDoubleClickMixin:
 
 class AnimatedButtonMixin:
     # doubleClicked = pyqtSignal()
-    def __init__(self, *args):
-        super().__init__(*args)  # 跳过所有参数
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)  # 跳过所有参数
         self._bg_basic_color = Palette.white
         self._bg_hover_color = Palette.blue_light
         self._bg_press_color = Palette.blue
@@ -128,6 +134,9 @@ class AnimatedButtonMixin:
             }}
         """)
         
+    def refresh_style(self):
+        self._update_style()
+        
         # 获取默认字体大小
         # default_font = self.font()
         # default_size = default_font.pointSize()  # 单位：pt
@@ -183,30 +192,51 @@ class AnimatedButtonMixin:
         else:
             self._hover_animation.setStartValue(self._bg_basic_color)
     
+    def toggle(self):
+        self.set_toggled(not self._toggled)
+    
     def toggled(self):
         return self._toggled
     
 class AnimatedPushButton(AnimatedButtonMixin, SeparateDoubleClickMixin, QPushButton):
-    def __init__(self, *args):
-        super().__init__(*args) # 向上传递所有参数
-
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs) # 向上传递所有参数
 
 class MouseEventPenetrateMixin:
-    def __init__(self, *args):
-        super().__init__(*args) # 跳过所有参数
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs) # 跳过所有参数
         pass
     
     def mousePressEvent(self, e):
-        self.parent().mousePressEvent(e) # 把事件转发给主窗口
-        return super().mousePressEvent(e)
+        ret = super().mousePressEvent(e) # 否则正常处理
+        self.ancestor().mousePressEvent(e) # 先把事件转发给主窗口
+        return ret
     
     def mouseMoveEvent(self, e):
-        self.parent().mouseMoveEvent(e)
+        self.ancestor().mouseMoveEvent(e)
         return super().mouseMoveEvent(e)
     
     def mouseReleaseEvent(self, e):
-        self.parent().mouseReleaseEvent(e) # 其实对于penetrate button来说这个多余的，会多出一个release event，但是对于edit又是必要的
-        return super().mouseReleaseEvent(e)
+        ret = super().mouseReleaseEvent(e)
+        self.ancestor().mouseReleaseEvent(e)
+        return ret
+    
+    """用于获取最外层窗口的Mixin"""
+    def get_ancestor_window(self):
+        """递归查找最外层窗口"""
+        parent = super().parent()
+        if parent is None:
+            return None
+        
+        # 向上遍历直到找到最外层窗口
+        while parent.parent() is not None:
+            parent = parent.parent()
+        return parent
+
+    def ancestor(self):
+        """重写parent方法, 直接返回最外层窗口"""
+        top_parent = self.get_ancestor_window()
+        return top_parent if top_parent is not None else super().parent()
 
 class PenetrateAnimatedButton(MouseEventPenetrateMixin, AnimatedPushButton):
     @typing.overload
@@ -233,7 +263,7 @@ class PenetrateAnimatedButton(MouseEventPenetrateMixin, AnimatedPushButton):
         # 处理关键字参数
         text = kwargs.get('text', text)
         parent = kwargs.get('parent', parent)
-        
+
         # 调用QPushButton的构造函数
         super().__init__(text, parent)
         self.setFocusPolicy(Qt.FocusPolicy.NoFocus)
@@ -333,7 +363,8 @@ class DraggableMixin:
         self.DRAG_OFFSET_MINIMUM = 5
         
         # 存储鼠标按下的初始位置
-        self._dragging = False
+        self.__pressing = False
+        self.__dragging = False
         self._drag_offset = QPoint()
         
         # 限制在屏幕内拖动
@@ -346,7 +377,8 @@ class DraggableMixin:
     def mousePressEvent(self, event):
         if event.button() == Qt.LeftButton:
             # 记录鼠标按下时的窗口位置
-            self._dragging = True
+            self.__pressing = True
+            self.__dragging = False
             self._drag_offset = event.globalPos() - self.pos()
             self._first_drag_pos = event.globalPos()
             
@@ -359,12 +391,15 @@ class DraggableMixin:
         return super().mousePressEvent(event)
     
     def mouseMoveEvent(self, event):
-        if self._dragging:
+        if self.__pressing:
             # 限制拖拽的最小距离
+            # 第一次拖动之后就不再限制
             _drag_offset = event.globalPos() - self._first_drag_pos
-            if abs(_drag_offset.x()) <= self.DRAG_OFFSET_MINIMUM and abs(_drag_offset.y()) <= self.DRAG_OFFSET_MINIMUM:
+            if not self.__dragging and \
+                abs(_drag_offset.x()) <= self.DRAG_OFFSET_MINIMUM and abs(_drag_offset.y()) <= self.DRAG_OFFSET_MINIMUM:
                 return
-            self._first_drag_pos = QPoint(-100, -100) # 第一次拖动之后就不再限制
+            self.__dragging = True # 拖动开始
+            # self._first_drag_pos = QPoint(-100, -100) # 第一次拖动之后就不再限制
             
             # 合理的屏幕范围
             self._screen_geometry = QApplication.primaryScreen().availableGeometry()
@@ -385,11 +420,14 @@ class DraggableMixin:
             
     def mouseReleaseEvent(self, event):
         if event.button() == Qt.LeftButton:
-            self._dragging = False
-        
+            self.__pressing = False
+            self.__dragging = False
         # print(self.x(), self.y(), self.width(), self.geometry())
         return super().mouseReleaseEvent(event)
-            
+    
+    def dragging(self):
+        return self.__dragging
+    
 # 只作为基类
 # class DraggableMainWindow(DraggableMixin, QMainWindow):
 #     def __init__(self, clipped = False):
@@ -702,3 +740,27 @@ class StylishFramelessWindow(DraggableMixin, QWidget):
 
     def _shadow_reduce_calculate_size(self, size: QSize):
         return size - QSize((self._shadow_radius - self._outside_margin) * 2, (self._shadow_radius - self._outside_margin) * 2)
+
+
+class StylishLabel(QLabel):
+    def __init__(self, parent, background_color, text_color, border_color):
+        super().__init__(parent)
+        self._background_color = background_color
+        self._text_color = text_color
+        self._border_color = border_color
+        self._update_style(background_color, text_color, border_color)
+        self.setText('00:00:00')
+        self.setFixedSize(self.minimumSizeHint())
+        
+    def _update_style(self, background_color, text_color, border_color):
+        self.setStyleSheet(f"""
+                background-color: {background_color.name()};
+                color: {text_color.name()};
+                border: 2px solid {border_color.name()};
+                font-size: 9pt;
+                padding: 5px;
+                border-radius: 10px;
+            """)
+    
+    def refresh_style(self):
+        self._update_style(self._background_color, self._text_color, self._border_color)

@@ -6,7 +6,7 @@ from PyQt5.QtGui import *
 import win32api
 import win32con
 
-from customwidgets import *
+from widgets import *
 from ui.widget import Ui_Form 
 
 def seconds_to_hms(seconds):
