@@ -1,0 +1,8 @@
+*.ink
+*.spec
+tempCodeRunnerFile.py
+.deprecated
+.test
+__pycache__
+build
+dist

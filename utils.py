@@ -1,9 +1,3 @@
-# TODO
-# - 把日志文件的名字改成日期 v
-# - 过了0点或者4点更换log_handler v 
-# - 日志文件的保存时间改为3天 v
-# - 可以把启动的时间保存在flag或者state文件中，如果到了第二天过了4点，就直接把计时器保存并刷新掉 v
-
 
 import os
 import json
@@ -352,7 +346,7 @@ class CrashHandler:
 
     def _handle_exception(self, exc_type, exc_value, traceback):
         """全局异常处理"""
-        _logger.warning(f"捕获异常: {exc_value}")
+        _logger.exception(f"捕获异常: {exc_type}: {exc_value}\n{traceback}")
         if not self.file_operations_disabled:
             self.save_app_state()  # 紧急保存状态
         self.clean_exit()      # 清理标志文件

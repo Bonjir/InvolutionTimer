@@ -1,6 +1,3 @@
-# TODO-CODE
-# 数据管理器默认存储位置改成用户目录 v
-# addSegment似乎要改 v
 
 from PyQt5.QtCore import QTimer, QElapsedTimer, QObject, pyqtSignal
 from utils import CrashHandler, Logger, _DATA_DIR
@@ -302,14 +299,16 @@ class DataManager:
         self.change_work_date(target_date)
         
         segment = {
-            'start': start_time.strftime('%H:%M:%S'),
-            'end': end_time.strftime('%H:%M:%S'),
+            'start': start_time.strftime('%Y-%m-%d %H:%M:%S'),
+            'end': end_time.strftime('%Y-%m-%d %H:%M:%S'),
             'work_time': work_time,
             'relax_time': relax_time,
             'type': 'work' if is_work else 'relax',
             'elapsed_time': elapsed_time
         }
         self._current_date_data['segments'].append(segment)
+        self._current_date_data['work_time'] = work_time
+        self._current_date_data['relax_time'] = relax_time
         
         # 保存数据
         month_data = self._load_month_data(self._current_date)
