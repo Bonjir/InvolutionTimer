@@ -1,4 +1,6 @@
 *.lnk
+record.json.lnk
+WorkRelaxTimer.lnk
 *.spec
 tempCodeRunnerFile.py
 .deprecated
