@@ -1,10 +1,8 @@
 *.lnk
-record.lnk
-WorkRelaxTimer.lnk
-*.spec
-tempCodeRunnerFile.py
 .deprecated
 .test
 __pycache__
 build
 dist
+*.spec
+tempCodeRunnerFile.py

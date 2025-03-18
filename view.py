@@ -140,7 +140,7 @@ class WorkRelaxTimerWindow(FadeoutMixin, StylishFramelessWindow, Ui_Form):
         FadeoutMixin.__init__(self, fade_when_idle = True)
         
         # 记录上次检查的工作日期
-        self._last_check_date = get_work_date()
+        # self._last_check_date = get_work_date()
         self._last_check_timestamp = datetime.now()
         
         # ui框架
@@ -319,9 +319,10 @@ class WorkRelaxTimerWindow(FadeoutMixin, StylishFramelessWindow, Ui_Form):
         
         # 检查是否跨天
         current_work_date = get_work_date()
-        if current_work_date != self._last_check_date:
+        last_check_date = get_work_date(self._last_check_timestamp)
+        if current_work_date != last_check_date:
             # 如果跨天时计时器仍在运行，则利用datamanager添加昨天最后一条记录
-            _logger.info(f"检测到日期变化(上次:{self._last_check_date}, 当前:{current_work_date})，重置计时器")
+            _logger.info(f"检测到日期变化(上次:{last_check_date}, 当前:{current_work_date})，重置计时器")
             if self.pair_timer.is_any_active():
                 self.data_manager.add_time_segment(
                     start_time=self.pair_timer.get_start_time(),
@@ -335,8 +336,8 @@ class WorkRelaxTimerWindow(FadeoutMixin, StylishFramelessWindow, Ui_Form):
             self.pair_timer.reset()
             self.update_worktime(0)
             self.update_relaxtime(0)
-            self._last_check_date = current_work_date
-            self._last_check_timestamp = datetime.now()
+            
+        self._last_check_timestamp = datetime.now() # 更新检查时间戳 要在添加记录的外面
             
     def on_clear_button_clicked(self):
         try:
