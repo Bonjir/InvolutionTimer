@@ -548,7 +548,17 @@ class FadeoutMixin:
     
     def on_fade_finished(self, faded: bool):
         ...
+    
+    def try_fadeout_animation(self, fading: bool):
+        if fading and self._is_faded:
+            return
+        if not fading and not self._is_faded:
+            return
         
+        self.toggle_animation(fading)
+        self._is_faded = fading
+        if self._fade_when_idle:
+            self._last_move_time = QTime.currentTime()
 
 from PyQt5.QtWidgets import (QApplication, QWidget, QVBoxLayout, QLabel, 
                             QPushButton, QHBoxLayout, QGraphicsDropShadowEffect)

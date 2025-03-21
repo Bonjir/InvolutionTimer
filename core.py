@@ -1,4 +1,3 @@
-
 from PyQt5.QtCore import QTimer, QElapsedTimer, QObject, pyqtSignal
 from utils import CrashHandler, Logger, _DATA_DIR
 
@@ -18,24 +17,24 @@ class PairTimer(QObject):
         self.work_elapsed = QElapsedTimer()  # 用于记录实际经过的时间
         self.relax_elapsed = QElapsedTimer()
         
-        self._work_time = 0  # 累计工作时间（毫秒）
-        self._relax_time = 0  # 累计休息时间（毫秒）
+        self._work_time = 0  # 累计工作时间（秒）
+        self._relax_time = 0  # 累计休息时间（秒）
         self._start_time = None  # 开始时间
         
         # 设置定时器间隔并连接信号
-        self.work_timer.setInterval(100)  # 500毫秒刷新一次
-        self.relax_timer.setInterval(100)  # 500毫秒刷新一次
+        self.work_timer.setInterval(100)  # 100毫秒刷新一次
+        self.relax_timer.setInterval(100)  # 100毫秒刷新一次
         self.work_timer.timeout.connect(self._on_work_timer)
         self.relax_timer.timeout.connect(self._on_relax_timer)
         
     def _on_work_timer(self):
         """工作定时器触发时发送信号"""
-        seconds = self.get_work_time() // 1000  # 转换为秒
+        seconds = self.get_work_time()  # 已经是秒
         self.work_timer_timeout.emit(seconds)
         
     def _on_relax_timer(self):
         """休息定时器触发时发送信号"""
-        seconds = self.get_relax_time() // 1000  # 转换为秒
+        seconds = self.get_relax_time()  # 已经是秒
         self.relax_timer_timeout.emit(seconds)
         
     def start_work(self):
@@ -46,7 +45,7 @@ class PairTimer(QObject):
         self._start_time = datetime.now()
         self.relax_timer.stop()
         if self.relax_elapsed.isValid():
-            self._relax_time += self.relax_elapsed.elapsed()
+            self._relax_time += self.relax_elapsed.elapsed() // 1000  # 转换为秒
             self.relax_elapsed.invalidate()
         
     def start_relax(self):
@@ -57,7 +56,7 @@ class PairTimer(QObject):
         self._start_time = datetime.now()
         self.relax_timer.start()
         if self.work_elapsed.isValid():
-            self._work_time += self.work_elapsed.elapsed()
+            self._work_time += self.work_elapsed.elapsed() // 1000  # 转换为秒
             self.work_elapsed.invalidate()
         
     def stop(self):
@@ -66,20 +65,20 @@ class PairTimer(QObject):
         self.work_timer.stop()
         self.relax_timer.stop()
         if self.work_elapsed.isValid():
-            self._work_time += self.work_elapsed.elapsed()
+            self._work_time += self.work_elapsed.elapsed() // 1000  # 转换为秒
             self.work_elapsed.invalidate()
         if self.relax_elapsed.isValid():
-            self._relax_time += self.relax_elapsed.elapsed()
+            self._relax_time += self.relax_elapsed.elapsed() // 1000  # 转换为秒
             self.relax_elapsed.invalidate()
         
     def get_work_time(self):
-        """获取工作时间（毫秒）"""
-        current = self.work_elapsed.elapsed() if self.work_elapsed.isValid() else 0
+        """获取工作时间（秒）"""
+        current = self.work_elapsed.elapsed() // 1000 if self.work_elapsed.isValid() else 0  # 转换为秒
         return self._work_time + current
     
     def get_relax_time(self):
-        """获取休息时间（毫秒）"""
-        current = self.relax_elapsed.elapsed() if self.relax_elapsed.isValid() else 0
+        """获取休息时间（秒）"""
+        current = self.relax_elapsed.elapsed() // 1000 if self.relax_elapsed.isValid() else 0  # 转换为秒
         return self._relax_time + current
     
     def get_start_time(self):
@@ -99,46 +98,50 @@ class PairTimer(QObject):
         """清空所有计时器"""
         self._work_time = 0
         self._relax_time = 0
-        self.work_elapsed.restart()
-        self.relax_elapsed.restart()
+        if self.work_elapsed.isValid():
+            self.work_elapsed.restart()
+        if self.relax_elapsed.isValid():
+            self.relax_elapsed.restart()
         
     def get_total_time(self):
-        """获取总时间（毫秒）"""
+        """获取总时间（秒）"""
         return self.get_work_time() + self.get_relax_time()
         
     def get_elapsed_time(self):
-        """获取当前计时器的时间（毫秒）"""
+        """获取当前计时器的时间（秒）"""
         if self.work_elapsed.isValid():
-            return self.work_elapsed.elapsed()
+            return self.work_elapsed.elapsed() // 1000  # 转换为秒
         elif self.relax_elapsed.isValid():
-            return self.relax_elapsed.elapsed()
+            return self.relax_elapsed.elapsed() // 1000  # 转换为秒
         return 0
         
-    def add_work_time(self, milliseconds: int):
+    def add_work_time(self, seconds: int):
         """
         手动添加工作时间
         Args:
-            milliseconds: 要添加的时间（毫秒）
+            seconds: 要添加的时间（秒）
         """
         # 如果当前正在计时，先保存当前计时
         if self.work_elapsed.isValid():
-            self._work_time += self.work_elapsed.elapsed()
+            self._work_time += self.work_elapsed.elapsed() // 1000  # 转换为秒
             self.work_elapsed.restart()
-        self._work_time += milliseconds
+        self._work_time += seconds
+        self._work_time = self._work_time if self._work_time > 0 else 0
         # 触发一次信号更新显示
         self._on_work_timer()
     
-    def add_relax_time(self, milliseconds: int):
+    def add_relax_time(self, seconds: int):
         """
         手动添加休息时间
         Args:
-            milliseconds: 要添加的时间（毫秒）
+            seconds: 要添加的时间（秒）
         """
         # 如果当前正在计时，先保存当前计时
         if self.relax_elapsed.isValid():
-            self._relax_time += self.relax_elapsed.elapsed()
+            self._relax_time += self.relax_elapsed.elapsed() // 1000  # 转换为秒
             self.relax_elapsed.restart()
-        self._relax_time += milliseconds
+        self._relax_time += seconds
+        self._relax_time = self._relax_time if self._relax_time > 0 else 0  # 防止出现负数
         # 触发一次信号更新显示
         self._on_relax_timer()
     

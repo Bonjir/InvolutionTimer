@@ -1,4 +1,3 @@
-
 import os
 import json
 import signal
@@ -6,6 +5,8 @@ import atexit
 from pathlib import Path
 import sys
 from typing import Optional, Dict
+from PyQt5.QtCore import QObject, pyqtSignal
+import keyboard
 
 APP_NAME = 'WorkRelaxTimer'
 
@@ -211,7 +212,40 @@ def get_work_date(target_time: datetime = None) -> date:
         return (target_time - timedelta(days=1)).date()
     return target_time.date()
 
- 
+class GlobalHotkey(QObject):
+    """基础快捷键类"""
+    triggered = pyqtSignal()  # 基础触发信号
+    
+    def __init__(self, key_sequence: str):
+        super().__init__()
+        self._logger = Logger(__name__)
+        self._key_sequence = key_sequence
+        self._registered = False
+        self._register()
+    
+    def _register(self):
+        """注册快捷键"""
+        try:
+            keyboard.add_hotkey(self._key_sequence, self.triggered.emit)
+            self._registered = True
+            self._logger.info(f"成功注册快捷键: {self._key_sequence}")
+        except Exception as e:
+            self._logger.error(f"注册快捷键 {self._key_sequence} 失败: {e}")
+            
+    def unregister(self):
+        """注销快捷键"""
+        if self._registered:
+            try:
+                keyboard.remove_hotkey(self._key_sequence)
+                self._registered = False
+                self._logger.info(f"成功注销快捷键: {self._key_sequence}")
+            except Exception as e:
+                self._logger.error(f"注销快捷键 {self._key_sequence} 失败: {e}")
+                
+    def __del__(self):
+        """析构函数，确保注销快捷键"""
+        self.unregister()
+
 class CrashHandler:
     def __init__(self):
         
@@ -300,14 +334,19 @@ class CrashHandler:
                 self.FLAG_FILE.unlink(missing_ok=True)
         
         # flag文件存在也恢复
-        try:
-            with open(self.STATE_FILE, 'r') as f:
-                saved_state = json.load(f)
-                _logger.info(f"读取状态:{saved_state}")
-            return saved_state
-        except json.JSONDecodeError:
-            _logger.error("状态文件损坏，使用默认配置")
-            return None
+        if self.STATE_FILE.exists():
+            try:
+                with open(self.STATE_FILE, 'r') as f:
+                    saved_state = json.load(f)
+                    _logger.info(f"读取状态:{saved_state}")
+                return saved_state
+            except json.JSONDecodeError:
+                _logger.error("状态文件损坏，使用默认配置")
+                return None
+            except Exception as e:
+                _logger.exception(f"读取状态文件失败: {e}")
+                return None
+        
 
     def is_file_operations_disabled(self):
         return self.file_operations_disabled
@@ -359,4 +398,20 @@ class CrashHandler:
             self.save_app_state()
         self.clean_exit()
         sys.exit(0)
+
+
+class SystemHotkey:
+    signal_triggered = pyqtSignal(str)
+    def __init__(self):
+        self.hotkeys = {}
+
+    def register(self, hotkey, callback):
+        self.hotkeys[hotkey] = callback
+
+    def unregister(self, hotkey):
+        del self.hotkeys[hotkey]
+
+    def trigger(self, hotkey):
+        if hotkey in self.hotkeys:
+            self.hotkeys[hotkey]()
 

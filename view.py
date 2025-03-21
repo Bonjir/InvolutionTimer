@@ -1,17 +1,20 @@
-
 import sys
+import re
 from PyQt5.QtCore import *
 from PyQt5.QtWidgets import *
 from PyQt5.QtGui import *
 import win32api
 import win32con
 from datetime import datetime, timedelta
+from system_hotkey import SystemHotkey
+import keyboard
 
 from widgets import *
 from ui.widget import Ui_Form 
 from ui.palette import Palette
 from utils import CrashHandler, Logger, get_work_date
 from core import PairTimer, DataManager
+from utils import GlobalHotkey
 
 _logger = Logger(__name__)
 
@@ -210,6 +213,16 @@ class WorkRelaxTimerWindow(FadeoutMixin, StylishFramelessWindow, Ui_Form):
         self.self_check_timer.timeout.connect(self.self_check)
         self.self_check_timer.start(60*1000) # 60秒
         
+        # 设置全局快捷键
+        self.work_hotkey = GlobalHotkey('Ctrl+F1')
+        self.work_hotkey.triggered.connect(self.on_work_shortcut_activated)
+        
+        self.relax_hotkey = GlobalHotkey('Ctrl+F2')
+        self.relax_hotkey.triggered.connect(self.on_relax_shortcut_activated)
+        
+        self.stop_hotkey = GlobalHotkey('Ctrl+F3')
+        self.stop_hotkey.triggered.connect(self.on_stop_shortcut_activated)
+        
         # 数据管理器
         self.data_manager = data_manager
         
@@ -218,7 +231,24 @@ class WorkRelaxTimerWindow(FadeoutMixin, StylishFramelessWindow, Ui_Form):
         if self.crash_handler:
             self.crash_handler.set_state_func(self.state_func)
 
+    def on_work_shortcut_activated(self):
+        self.try_fadeout_animation(False)
+        self.mini.try_fadeout_animation(True)
+        self.on_work_button_clicked()
+        _logger.info("快捷键触发 - 工作模式")
+
+    def on_relax_shortcut_activated(self):
+        self.try_fadeout_animation(False)
+        self.mini.try_fadeout_animation(True)
+        self.on_relax_button_clicked()
+        _logger.info("快捷键触发 - 放松模式")
         
+    def on_stop_shortcut_activated(self):
+        self.try_fadeout_animation(False)
+        self.mini.try_fadeout_animation(True)
+        self.on_stop_button_clicked()
+        _logger.info("快捷键触发 - 停止模式")
+
     def _seconds_to_hms(self, seconds):
         # 使用 divmod 计算小时、分钟和秒数
         hours, remainder = divmod(seconds, 3600)  # 3600秒是1小时
@@ -229,17 +259,17 @@ class WorkRelaxTimerWindow(FadeoutMixin, StylishFramelessWindow, Ui_Form):
     def on_work_button_clicked(self):
         try:
             _logger.debug(f'on_work_button_clicked')
-            add_segment = self.pair_timer.is_relax_active() and self.pair_timer.get_elapsed_time() > 100 * 1000 # 休息时间大于100秒则记录为休息
+            add_segment = self.pair_timer.is_relax_active() and self.pair_timer.get_elapsed_time() > 100  # 休息时间大于100秒则记录为休息
             segment_start_time = self.pair_timer.get_start_time()
-            elapsed_time = self.pair_timer.get_elapsed_time() // 1000  # 转换为秒
+            elapsed_time = self.pair_timer.get_elapsed_time()  # 已经是秒
             self.pair_timer.start_work()
             
             if add_segment and self.data_manager:
                 self.data_manager.add_time_segment(
                     start_time=segment_start_time,
                     end_time=datetime.now(),
-                    work_time=self.pair_timer.get_work_time() // 1000,
-                    relax_time=self.pair_timer.get_relax_time() // 1000,
+                    work_time=self.pair_timer.get_work_time(),
+                    relax_time=self.pair_timer.get_relax_time(),
                     is_work=False,
                     elapsed_time=elapsed_time
                 )
@@ -249,42 +279,42 @@ class WorkRelaxTimerWindow(FadeoutMixin, StylishFramelessWindow, Ui_Form):
     def on_relax_button_clicked(self):
         try:
             _logger.debug(f'on_relax_button_clicked')
-            add_segment = self.pair_timer.is_work_active() and self.pair_timer.get_elapsed_time() > 100 * 1000 # 工作时间大于100秒则记录为工作 
+            add_segment = self.pair_timer.is_work_active() and self.pair_timer.get_elapsed_time() > 100  # 工作时间大于100秒则记录为工作 
             segment_start_time = self.pair_timer.get_start_time()
-            elapsed_time = self.pair_timer.get_elapsed_time() // 1000  # 转换为秒
+            elapsed_time = self.pair_timer.get_elapsed_time()  # 已经是秒
             self.pair_timer.start_relax()
             
             if add_segment and self.data_manager:
                 self.data_manager.add_time_segment(
                     start_time=segment_start_time,
                     end_time=datetime.now(),
-                    work_time=self.pair_timer.get_work_time() // 1000,
-                    relax_time=self.pair_timer.get_relax_time() // 1000,
-                        is_work=True,
-                        elapsed_time=elapsed_time
-                    )
+                    work_time=self.pair_timer.get_work_time(),
+                    relax_time=self.pair_timer.get_relax_time(),
+                    is_work=True,
+                    elapsed_time=elapsed_time
+                )
         except Exception as e:
             _logger.exception(e)
     
     def on_stop_button_clicked(self):
         try:
             _logger.debug(f'on_stop_button_clicked')
-            if self.pair_timer.is_work_active() and self.pair_timer.get_elapsed_time() > 100 * 1000:
+            if self.pair_timer.is_work_active() and self.pair_timer.get_elapsed_time() > 100:
                 add_segment = 'work'
-            elif self.pair_timer.is_relax_active() and self.pair_timer.get_elapsed_time() > 100 * 1000:
+            elif self.pair_timer.is_relax_active() and self.pair_timer.get_elapsed_time() > 100:
                 add_segment = 'relax'
             else:
                 add_segment = None
             segment_start_time = self.pair_timer.get_start_time()
-            elapsed_time = self.pair_timer.get_elapsed_time() // 1000  # 转换为秒
+            elapsed_time = self.pair_timer.get_elapsed_time()  # 已经是秒
             self.pair_timer.stop()
             
             if add_segment and self.data_manager:
                 self.data_manager.add_time_segment(
                     start_time=segment_start_time,
                     end_time=datetime.now(),
-                    work_time=self.pair_timer.get_work_time() // 1000,
-                    relax_time=self.pair_timer.get_relax_time() // 1000,
+                    work_time=self.pair_timer.get_work_time(),
+                    relax_time=self.pair_timer.get_relax_time(),
                     is_work=(add_segment == 'work'),
                     elapsed_time=elapsed_time
                 )
@@ -327,10 +357,10 @@ class WorkRelaxTimerWindow(FadeoutMixin, StylishFramelessWindow, Ui_Form):
                 self.data_manager.add_time_segment(
                     start_time=self.pair_timer.get_start_time(),
                     end_time=self._last_check_timestamp,
-                    work_time=self.pair_timer.get_work_time() // 1000,
-                    relax_time=self.pair_timer.get_relax_time() // 1000,
+                    work_time=self.pair_timer.get_work_time(),
+                    relax_time=self.pair_timer.get_relax_time(),
                     is_work=self.pair_timer.is_work_active(),
-                    elapsed_time=self.pair_timer.get_elapsed_time() // 1000
+                    elapsed_time=self.pair_timer.get_elapsed_time()
                 )
                 _logger.info(f"添加昨天最后一条记录")
             self.pair_timer.reset()
@@ -356,18 +386,31 @@ class WorkRelaxTimerWindow(FadeoutMixin, StylishFramelessWindow, Ui_Form):
     def editingFinishedEvent(self, event):
         try:
             work_suplement = int(self.work_edit.text())
-            self.pair_timer.add_work_time(work_suplement * 60 * 1000)
         except:
-            pass
+            try:
+                text = self.work_edit.text()
+                # 去掉text中所有字母
+                text = re.sub(r'[a-zA-Z]', '', text)
+                work_suplement = int(eval(text))
+            except:
+                work_suplement = 0
         try:
             relax_suplement = int(self.relax_edit.text())
-            self.pair_timer.add_relax_time(relax_suplement * 60 * 1000)
         except:
-            pass
-        self.update_worktime(self.pair_timer.get_work_time() // 1000)
-        self.update_relaxtime(self.pair_timer.get_relax_time() // 1000)
+            try:
+                text = self.relax_edit.text()
+                text = re.sub(r'[a-zA-Z]', '', text)
+                relax_suplement = int(eval(text))
+            except:
+                relax_suplement = 0
+        self.pair_timer.add_work_time(work_suplement * 60)  # 转换为秒
+        self.pair_timer.add_relax_time(relax_suplement * 60)  # 转换为秒
+        self.update_worktime(self.pair_timer.get_work_time())
+        self.update_relaxtime(self.pair_timer.get_relax_time())
         self.work_edit.setText('')
         self.relax_edit.setText('')
+        _logger.info(f'手动添加工作时间: {work_suplement}分, 休息时间: {relax_suplement}分, 当前工作时间: {self.pair_timer.get_work_time()}秒, 当前休息时间: {self.pair_timer.get_relax_time()}秒')
+        
         
     def showEvent(self, a0):
         # 模拟点击消除掉tool窗口首次press的延迟
@@ -416,8 +459,8 @@ class WorkRelaxTimerWindow(FadeoutMixin, StylishFramelessWindow, Ui_Form):
     
     def state_func(self):
         return {
-            'work': self.pair_timer.get_work_time() // 1000,
-            'relax': self.pair_timer.get_relax_time() // 1000,
+            'work': self.pair_timer.get_work_time(),
+            'relax': self.pair_timer.get_relax_time(),
             'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         }
     
@@ -428,8 +471,8 @@ class WorkRelaxTimerWindow(FadeoutMixin, StylishFramelessWindow, Ui_Form):
             
         if self.data_manager:
             self.data_manager.save_current_state(
-                self.pair_timer.get_work_time() // 1000,
-                self.pair_timer.get_relax_time() // 1000
+                self.pair_timer.get_work_time(),
+                self.pair_timer.get_relax_time()
             )
     
     def restore_from_state(self, state):
@@ -446,17 +489,17 @@ class WorkRelaxTimerWindow(FadeoutMixin, StylishFramelessWindow, Ui_Form):
                 _logger.info(f'状态({state["timestamp"]})不在当前工作日，跳过恢复')
                 return False
                 
-            work_time = state['work'] * 1000  # 转换为毫秒
-            relax_time = state['relax'] * 1000
+            work_time = state['work']  # 已经是秒
+            relax_time = state['relax']  # 已经是秒
             self.pair_timer._work_time = work_time
             self.pair_timer._relax_time = relax_time
             
-            _logger.info(f'从状态恢复 - 工作时间: {work_time//1000}秒, 休息时间: {relax_time//1000}秒')
+            _logger.info(f'从状态恢复 - 工作时间: {work_time}秒, 休息时间: {relax_time}秒')
         except Exception as e:
             _logger.warning(f'恢复加载失败({state})')
             _logger.exception(e)
             return False
-        self.update_worktime(work_time // 1000)
-        self.update_relaxtime(relax_time // 1000)
+        self.update_worktime(work_time)
+        self.update_relaxtime(relax_time)
         return True
     
