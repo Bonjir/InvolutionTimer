@@ -80,8 +80,8 @@ class AnimatedButtonMixin:
         self._hover_animation.setStartValue(self._bg_basic_color)
         self._hover_animation.setEndValue(self._bg_hover_color)
 
-        self.enterEvent = lambda e: self._toggle_hover_animation(True)
-        self.leaveEvent = lambda e: self._toggle_hover_animation(False)
+        self.enterEvent = lambda e: self._start_hover_animation(True)
+        self.leaveEvent = lambda e: self._start_hover_animation(False)
 
         # 按下动画
         self._press_animation = QPropertyAnimation(self, b"blend_color")
@@ -143,22 +143,27 @@ class AnimatedButtonMixin:
         # default_size_px = default_font.pixelSize()  # 单位：px（可能为 -1，取决于系统）
         # print(f"默认字体大小：{default_size}pt 或约 {default_size_px}px")
 
-    def _toggle_hover_animation(self, forward):
+    def _start_hover_animation(self, forward):
         self._hover_animation.setDirection(QPropertyAnimation.Forward if forward else QPropertyAnimation.Backward)
         self._hover_animation.start()
 
-    def _toggle_press_animation(self, forward):
+    def _start_press_animation(self, forward):
         self._press_animation.setDirection(QPropertyAnimation.Forward if forward else QPropertyAnimation.Backward)
         self._press_animation.start()
     
+    def twinkle(self):
+        # 闪烁动画
+        self._start_hover_animation(True)
+        QTimer.singleShot(self._hover_animation.duration() + 100, lambda: self._start_hover_animation(False))
+    
     def mousePressEvent(self, e):
         self._mouse_pressed = True
-        self._toggle_press_animation(forward=True)
+        self._start_press_animation(forward=True)
         return super().mousePressEvent(e)
 
     def mouseReleaseEvent(self, e):
         self._mouse_pressed = False
-        self._toggle_press_animation(forward=False)
+        self._start_press_animation(forward=False)
         return super().mouseReleaseEvent(e)
     
     # def mouseDoubleClickEvent(self, e):
@@ -193,6 +198,7 @@ class AnimatedButtonMixin:
             self._hover_animation.setStartValue(self._bg_basic_color)
     
     def toggle(self):
+        # 切换Toggle按钮状态
         self.set_toggled(not self._toggled)
     
     def toggled(self):
@@ -337,14 +343,15 @@ class PenetrateLineEdit(MouseEventPenetrateMixin, QLineEdit):
         if index == -1:
             return
         
-        # 如果有下一个控件，则将焦点转移过去
-        while index + 1 < layout.count():
-            index += 1
-            next_widget = layout.itemAt(index).widget()
-            # print(next_widget)
-            if isinstance(next_widget, QLineEdit):
-                next_widget.setFocus()
-                return
+        # 不转移焦点了
+        # # 如果有下一个控件，则将焦点转移过去
+        # while index + 1 < layout.count():
+        #     index += 1
+        #     next_widget = layout.itemAt(index).widget()
+        #     # print(next_widget)
+        #     if isinstance(next_widget, QLineEdit):
+        #         next_widget.setFocus()
+        #         return
             
         # 没有下一个Edit
         while parent != None:
@@ -499,7 +506,7 @@ class FadeoutMixin:
         
         self._last_move_time = QTime.currentTime()
         if self._is_faded:
-            self.toggle_animation(False)
+            self._start_fadeout_animation(False)
             self._is_faded = False
         super().enterEvent(event)
         
@@ -510,7 +517,7 @@ class FadeoutMixin:
         
         self._last_move_time = QTime.currentTime()
         if self._is_faded:
-            self.toggle_animation(False)
+            self._start_fadeout_animation(False)
             self._is_faded = False
         return super().mouseMoveEvent(event)
 
@@ -530,10 +537,10 @@ class FadeoutMixin:
         
         if self._last_move_time.msecsTo(QTime.currentTime()) > self._idle_span and \
           not self._is_faded:
-            self.toggle_animation(True)
+            self._start_fadeout_animation(True)
             self._is_faded = True
             
-    def toggle_animation(self, fading):
+    def _start_fadeout_animation(self, fading):
         # self.fadeout_animation.setDuration(1000 if forward else 500)
         self.fadeout_animation.setDirection(QPropertyAnimation.Forward if fading else QPropertyAnimation.Backward)
         self.fadeout_animation.start()
@@ -549,13 +556,16 @@ class FadeoutMixin:
     def on_fade_finished(self, faded: bool):
         ...
     
+    def is_faded(self):
+        return self._is_faded
+    
     def try_fadeout_animation(self, fading: bool):
         if fading and self._is_faded:
             return
         if not fading and not self._is_faded:
             return
         
-        self.toggle_animation(fading)
+        self._start_fadeout_animation(fading)
         self._is_faded = fading
         if self._fade_when_idle:
             self._last_move_time = QTime.currentTime()

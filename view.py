@@ -235,18 +235,21 @@ class WorkRelaxTimerWindow(FadeoutMixin, StylishFramelessWindow, Ui_Form):
         self.try_fadeout_animation(False)
         self.mini.try_fadeout_animation(True)
         self.on_work_button_clicked()
+        self.work_button.twinkle()
         _logger.info("快捷键触发 - 工作模式")
 
     def on_relax_shortcut_activated(self):
         self.try_fadeout_animation(False)
         self.mini.try_fadeout_animation(True)
         self.on_relax_button_clicked()
+        self.relax_button.twinkle()
         _logger.info("快捷键触发 - 放松模式")
         
     def on_stop_shortcut_activated(self):
         self.try_fadeout_animation(False)
         self.mini.try_fadeout_animation(True)
         self.on_stop_button_clicked()
+        self.stop_button.twinkle()
         _logger.info("快捷键触发 - 停止模式")
 
     def _seconds_to_hms(self, seconds):
@@ -447,10 +450,10 @@ class WorkRelaxTimerWindow(FadeoutMixin, StylishFramelessWindow, Ui_Form):
             QTimer.singleShot(50, _delayed_task) # 在信号函数中处理ui需要手动延时
             
             self.mini.show()
-            self.mini.toggle_animation(fading=False)
+            self.mini._start_fadeout_animation(fading=False)
             
         else:
-            self.mini.toggle_animation(fading=True)
+            self.mini._start_fadeout_animation(fading=True)
             
         return super().on_fadingout(fading)
     

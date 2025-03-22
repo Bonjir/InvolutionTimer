@@ -218,7 +218,7 @@ class GlobalHotkey(QObject):
     
     def __init__(self, key_sequence: str):
         super().__init__()
-        self._logger = Logger(__name__)
+        self._logger = Logger(__class__.__name__)
         self._key_sequence = key_sequence
         self._registered = False
         self._register()
