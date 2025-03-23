@@ -3,11 +3,11 @@
 from PyQt5.QtCore import Qt, QTime, QEasingCurve, \
     QPoint, QSize, QRect, \
     QTimer, QPropertyAnimation, pyqtProperty, pyqtSignal
-from PyQt5.QtWidgets import QWidget, QPushButton, QLineEdit, QApplication
-from PyQt5.QtGui import QCursor, QColor, QPainterPath
+from PyQt5.QtWidgets import QWidget, QPushButton, QLineEdit, QApplication, QMenu, QAction
+from PyQt5.QtGui import QCursor, QColor, QPainterPath, QPainter, QPen
 import typing
 
-from ui.palette import Palette
+from ui.palette import Palette, get_theme_colors
 from utils import Logger
 
 _logger = Logger(__name__) # 不要删它
@@ -70,6 +70,7 @@ class AnimatedButtonMixin:
         
         self._bg_color = self._bg_basic_color  # 初始背景色（白）
         self._text_color = self._text_basic_color # 初始文字色（蓝）
+        self._theme_color = Palette.blue
         self._update_style()
         
         # 悬停动画
@@ -169,6 +170,16 @@ class AnimatedButtonMixin:
     # def mouseDoubleClickEvent(self, e):
     #     self.doubleClicked.emit()
     
+    def get_theme_color(self):
+        return self._theme_color
+    
+    def set_theme_color(self, color):
+        self._theme_color = color
+        normal, light, dark = get_theme_colors(color)
+        self.set_bg_color(Palette.white, light, normal, light)
+        self.set_text_color(normal, dark, Palette.white, dark)
+        # self._update_style()
+        
     def set_bg_color(self, basic, hover, press, toggled = None):
         self._bg_basic_color = basic
         self._bg_hover_color = hover
@@ -480,6 +491,8 @@ class FadeoutMixin:
         # 信号与槽
         self.signal_fading.connect(self.on_fadingout)
         self.signal_fading_finished.connect(self.on_fade_finished)
+        
+        self._key_rect_list = []
     
     def set_init_opacity(self, opacity):
         self.fadeout_animation.setStartValue(opacity)
@@ -529,11 +542,28 @@ class FadeoutMixin:
             self._pressing = False
         return super().mouseReleaseEvent(event)
     
+    def add_key_fadeout_rect(self, rect: QRect):
+        """添加关键矩形, 用于判断鼠标是否在窗口内"""
+        self._key_rect_list.append(rect)
+    
+    def remove_key_fadeout_rect(self, rect: QRect):
+        if rect in self._key_rect_list:
+            self._key_rect_list.remove(rect)
+    
     def _check_idle(self):
         """检查是否有空闲时间，如果空闲则缩小窗口"""
+        if self._is_faded:
+            return
+        
         if self.geometry().contains(QCursor.pos()) or self._pressing:
             self._last_move_time = QTime.currentTime()
             return
+        
+        # 检查鼠标是否在关键矩形中
+        for rect in self._key_rect_list:
+            if rect.contains(QCursor.pos()):
+                self._last_move_time = QTime.currentTime()
+                return
         
         if self._last_move_time.msecsTo(QTime.currentTime()) > self._idle_span and \
           not self._is_faded:
@@ -571,7 +601,7 @@ class FadeoutMixin:
             self._last_move_time = QTime.currentTime()
 
 from PyQt5.QtWidgets import (QApplication, QWidget, QVBoxLayout, QLabel, 
-                            QPushButton, QHBoxLayout, QGraphicsDropShadowEffect)
+                            QPushButton, QHBoxLayout, QGraphicsDropShadowEffect, QMenu)
 from PyQt5.QtCore import Qt, QPoint, QRectF
 from PyQt5.QtGui import QColor, QPainterPath, QPainter, QPen
 
@@ -784,3 +814,163 @@ class StylishLabel(QLabel):
     
     def refresh_style(self):
         self._update_style(self._background_color, self._text_color, self._border_color)
+
+class AnimatedMenu(FadeoutMixin, QMenu):
+    """具有淡入淡出和弹出动画效果的菜单类"""
+    
+    def __init__(self, parent=None, fade_when_idle=False):
+        QMenu.__init__(self, parent)
+        FadeoutMixin.__init__(self, fade_when_idle)
+        
+        # 设置窗口标志和属性以启用圆角和背景透明
+        self.setWindowFlags(Qt.FramelessWindowHint | Qt.Popup)
+        self.setAttribute(Qt.WA_TranslucentBackground)
+        
+        # 创建弹出动画
+        # self.popup_animation = QPropertyAnimation(self, b"pos")
+        # self.popup_animation.setDuration(200)  # 动画持续200毫秒
+        # self.popup_animation.setEasingCurve(QEasingCurve.OutCubic)
+        
+        # 设置默认样式
+        self._setup_style()
+        
+        # 设置淡入淡出透明度范围
+        self.set_opacity_startend(0.9, 0.0)
+        
+        # 关联的窗口列表： 会在 [显示时和关闭时] 向其申请 [添加和删除关键矩形]
+        self.related_widgets_list = []
+        if self.parent() is not None and hasattr(self.parent(), 'add_key_rect'):
+            self.related_widgets_list.append(self.parent())
+    
+    def _setup_style(self):
+        """设置菜单样式"""
+        self.setStyleSheet("""
+            QMenu {
+                background-color: rgba(255, 255, 255, 0.90);
+                border: 1px solid rgba(200, 200, 200, 0.8);
+                border-radius: 10px;
+                padding: 5px;
+            }
+            QMenu::item {
+                padding: 8px 20px;
+                border-radius: 5px;
+                margin: 2px 5px;
+            }
+            QMenu::item:selected {
+                background-color: rgba(230, 230, 230, 0.8);
+                color: rgba(0, 0, 0, 0.9);
+            }
+            QMenu::separator {
+                height: 1px;
+                background-color: rgba(200, 200, 200, 0.7);
+                margin: 4px 10px;
+            }
+        """)
+    
+    def set_theme(self, bg_color, text_color, highlight_bg, highlight_text):
+        """自定义菜单主题颜色"""
+        self.setStyleSheet(f"""
+            QMenu {{
+                background-color: rgba(255, 255, 255, 0.90);
+                border: 1px solid rgba(200, 200, 200, 0.8);
+                border-radius: 10px;
+                padding: 5px;
+            }}
+            QMenu::item {{
+                color: {text_color.name(QColor.HexArgb)};
+                padding: 8px 20px;
+                border-radius: 5px;
+                margin: 2px 5px;
+            }}
+            QMenu::item:selected {{
+                background-color: {highlight_bg.name(QColor.HexArgb)};
+                color: {highlight_text.name(QColor.HexArgb)};
+            }}
+            QMenu::separator {{
+                height: 1px;
+                background-color: {QColor(bg_color).darker(110).name(QColor.HexArgb)};
+                margin: 4px 10px;
+            }}
+        """)
+    
+    def add_related_fadeout_widget(self, widget):
+        """添加关联的窗口"""
+        if widget not in self.related_widgets_list:
+            self.related_widgets_list.append(widget)
+    
+    def remove_related_fadeout_widget(self, widget):
+        """移除关联的窗口"""
+        if widget in self.related_widgets_list:
+            self.related_widgets_list.remove(widget)
+    
+    def showEvent(self, event):
+        """菜单显示时的动画效果"""
+        # 下面是一些废弃的动画效果
+        # # 获取目标位置
+        # target_pos = self.pos()
+        # # 设置起始位置（稍微向下偏移）
+        # self.move(target_pos.x(), target_pos.y() + 15)
+        # self.popup_animation.setStartValue(self.pos())
+        # self.popup_animation.setEndValue(target_pos)
+        # self.popup_animation.start()
+        
+        # 设置动画
+        self.try_fadeout_animation(False)
+        
+        super().showEvent(event)
+
+        for widget in self.related_widgets_list:
+            if hasattr(widget, 'add_key_fadeout_rect'):
+                widget.add_key_fadeout_rect(self.geometry())
+        
+    def closeEvent(self, event):
+        for widget in self.related_widgets_list:
+            if hasattr(widget, 'remove_key_fadeout_rect'):
+                widget.remove_key_fadeout_rect(self.geometry())
+        super().closeEvent(event)
+            
+    def on_fadingout(self, fading: bool):
+        """淡入淡出过程中的回调"""
+        pass
+    
+    def on_fade_finished(self, faded: bool):
+        """淡入淡出完成后的回调"""
+        if faded:
+            # 如果已经淡出了，可以在这里做一些处理
+            self.close()
+            pass
+    
+    def exec_(self, pos=None):
+        """执行菜单显示，可以指定位置"""
+        if pos:
+            return super().exec_(pos)
+        return super().exec_(QCursor.pos())
+    
+    def add_styled_action(self, text, callback, icon=None):
+        """添加一个带样式的操作项"""
+        action = QAction(text, self)
+        if icon:
+            action.setIcon(icon)
+        action.triggered.connect(callback)
+        self.addAction(action)
+        return action
+
+    def paintEvent(self, event):
+        """自定义绘制事件，添加阴影效果"""
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing)
+        
+        # 绘制阴影
+        path = QPainterPath()
+        path.addRoundedRect(QRectF(self.rect()).adjusted(1, 1, -1, -1), 10, 10)
+        
+        # 半透明背景
+        painter.fillPath(path, QColor(0, 0, 0, 15))
+        
+        # 调用原生绘制
+        super().paintEvent(event)
+
+    def mouseMoveEvent(self, event):
+        super().mouseMoveEvent(event)
+        self.parent().mouseMoveEvent(event)
+

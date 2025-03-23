@@ -37,7 +37,7 @@ _CONSOLE_LOG_HANDLER.setLevel(logging.INFO)  # 控制台只记录INFO及以上
 _FILE_LOG_HANDLER.setLevel(logging.DEBUG)    # 文件记录所有DEBUG及以上
 
 _log_formatter = logging.Formatter(
-    "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    f"%(asctime)s - {os.getpid()} - %(name)s - %(levelname)s - %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S"
 )
 _CONSOLE_LOG_HANDLER.setFormatter(_log_formatter)
@@ -194,24 +194,6 @@ class Logger:
 _logger = Logger(__name__)
 
 
-from datetime import datetime, timedelta, date
-
-def get_work_date(target_time: datetime = None) -> date:
-    """
-    获取工作日期（4点前算作前一天）
-    Args:
-        target_time: 目标时间，默认为当前时间
-    Returns:
-        工作日期
-    """
-    if target_time is None:
-        target_time = datetime.now()
-        
-    # 如果小于4点，日期要减一天
-    if target_time.hour < 4:
-        return (target_time - timedelta(days=1)).date()
-    return target_time.date()
-
 class GlobalHotkey(QObject):
     """基础快捷键类"""
     triggered = pyqtSignal()  # 基础触发信号
@@ -245,6 +227,44 @@ class GlobalHotkey(QObject):
     def __del__(self):
         """析构函数，确保注销快捷键"""
         self.unregister()
+        
+    def reset_hotkey(self):
+        """检查快捷键是否失效，如果失效则尝试重新注册"""
+        if not self._registered:
+            return False
+        
+        try:
+            keyboard.remove_hotkey(self._key_sequence)
+            self._registered = False
+        except Exception as e:
+            self._logger.error(f"检查到快捷键 {self._key_sequence} 失效: {e}")
+            
+        try:
+            keyboard.add_hotkey(self._key_sequence, self.triggered.emit)
+            self._registered = True
+            self._logger.info(f"重新注册快捷键: {self._key_sequence}")
+        except Exception as e:
+            self._logger.error(f"重新注册快捷键 {self._key_sequence} 失败: {e}")
+            
+        return self._registered
+    
+from datetime import datetime, timedelta, date
+
+def get_work_date(target_time: datetime = None) -> date:
+    """
+    获取工作日期（4点前算作前一天）
+    Args:
+        target_time: 目标时间，默认为当前时间
+    Returns:
+        工作日期
+    """
+    if target_time is None:
+        target_time = datetime.now()
+        
+    # 如果小于4点，日期要减一天
+    if target_time.hour < 4:
+        return (target_time - timedelta(days=1)).date()
+    return target_time.date()
 
 class CrashHandler:
     def __init__(self):
@@ -398,20 +418,3 @@ class CrashHandler:
             self.save_app_state()
         self.clean_exit()
         sys.exit(0)
-
-
-class SystemHotkey:
-    signal_triggered = pyqtSignal(str)
-    def __init__(self):
-        self.hotkeys = {}
-
-    def register(self, hotkey, callback):
-        self.hotkeys[hotkey] = callback
-
-    def unregister(self, hotkey):
-        del self.hotkeys[hotkey]
-
-    def trigger(self, hotkey):
-        if hotkey in self.hotkeys:
-            self.hotkeys[hotkey]()
-

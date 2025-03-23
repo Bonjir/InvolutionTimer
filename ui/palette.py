@@ -14,3 +14,25 @@ class Palette:
     red = QColor(219, 101, 101)
     red_light = QColor(240, 188, 186)
     red_dark = QColor(173, 94, 72)
+    gray = QColor(70, 70, 70) 
+    gray_light = QColor(240, 240, 240)
+    gray_dark = QColor(50, 50, 50)
+    
+# QColor 的lighter和darker方法
+
+# 根据主题颜色获取颜色
+def get_theme_colors(theme_color):
+    # 如果在palette中，则直接返回
+    if theme_color == Palette.blue:
+        return [Palette.blue, Palette.blue_light, Palette.blue_dark]
+    elif theme_color == Palette.orange:
+        return [Palette.orange, Palette.orange_light, Palette.orange_dark]
+    elif theme_color == Palette.green:
+        return [Palette.green, Palette.green_light, Palette.green_dark]
+    elif theme_color == Palette.red:
+        return [Palette.red, Palette.red_light, Palette.red_dark]
+    elif theme_color == Palette.gray:
+        return [Palette.gray, Palette.gray_light, Palette.gray_dark]
+    else:
+        return [theme_color, theme_color.lighter(130), theme_color.darker(130)]
+

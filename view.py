@@ -1,3 +1,4 @@
+import random
 import sys
 import re
 from PyQt5.QtCore import *
@@ -11,8 +12,8 @@ import keyboard
 
 from widgets import *
 from ui.widget import Ui_Form 
-from ui.palette import Palette
-from utils import CrashHandler, Logger, get_work_date
+from ui.palette import Palette, get_theme_colors
+from utils import CrashHandler, Logger, get_work_date, _LOG_DIR, _DATA_DIR
 from core import PairTimer, DataManager
 from utils import GlobalHotkey
 
@@ -49,9 +50,9 @@ class MiniWindow(MouseEventPenetrateMixin, FadeoutMixin, StylishFramelessWindow,
         
         self.setupUi(self.form, work_color, relax_color, bjtime_color)        
         self.vlayout:QVBoxLayout
-        self.work_label:QLabel
-        self.relax_label:QLabel
-        self.bjtime_label:QLabel
+        self.work_label:StylishLabel
+        self.relax_label:StylishLabel
+        self.bjtime_label:StylishLabel
         
         # 初始设置窗口大小、标题等
         self.adjustSize()
@@ -156,17 +157,23 @@ class WorkRelaxTimerWindow(FadeoutMixin, StylishFramelessWindow, Ui_Form):
         self.relax_edit: PenetrateLineEdit
         
         # 设置按钮颜色
-        self.work_button.set_bg_color(Palette.white, Palette.blue_light, Palette.blue)
-        self.work_button.set_text_color(Palette.blue, Palette.blue_dark, Palette.white)
+        # self.work_button.set_bg_color(Palette.white, Palette.blue_light, Palette.blue)
+        # self.work_button.set_text_color(Palette.blue, Palette.blue_dark, Palette.white)
         
-        self.relax_button.set_bg_color(Palette.white, Palette.orange_light, Palette.orange)
-        self.relax_button.set_text_color(Palette.orange, Palette.orange_dark, Palette.white)
+        # self.relax_button.set_bg_color(Palette.white, Palette.orange_light, Palette.orange)
+        # self.relax_button.set_text_color(Palette.orange, Palette.orange_dark, Palette.white)
         
-        self.stop_button.set_bg_color(Palette.white, Palette.green_light, Palette.green)
-        self.stop_button.set_text_color(Palette.green, Palette.green_dark, Palette.white)
+        # self.stop_button.set_bg_color(Palette.white, Palette.green_light, Palette.green)
+        # self.stop_button.set_text_color(Palette.green, Palette.green_dark, Palette.white)
         
-        self.clear_button.set_bg_color(Palette.white, Palette.red_light, Palette.red)
-        self.clear_button.set_text_color(Palette.red, Palette.red_dark, Palette.white)
+        # self.clear_button.set_bg_color(Palette.white, Palette.red_light, Palette.red)
+        # self.clear_button.set_text_color(Palette.red, Palette.red_dark, Palette.white)
+        
+        self.work_button.set_theme_color(Palette.blue)
+        self.relax_button.set_theme_color(Palette.orange)
+        self.stop_button.set_theme_color(Palette.green)
+        self.clear_button.set_theme_color(Palette.red)
+        
         self.clear_button.setText('clear')
 
         self.update_worktime(0)
@@ -230,6 +237,12 @@ class WorkRelaxTimerWindow(FadeoutMixin, StylishFramelessWindow, Ui_Form):
         self.crash_handler = crash_handler
         if self.crash_handler:
             self.crash_handler.set_state_func(self.state_func)
+            
+        # 初始化右键菜单
+        self.context_menu_manager = ContextMenuManager(self)
+        
+        # 为主窗口和各个控件添加右键菜单
+        self.context_menu_manager.create_menu_for_widget(self.form)
 
     def on_work_shortcut_activated(self):
         self.try_fadeout_animation(False)
@@ -415,19 +428,19 @@ class WorkRelaxTimerWindow(FadeoutMixin, StylishFramelessWindow, Ui_Form):
         _logger.info(f'手动添加工作时间: {work_suplement}分, 休息时间: {relax_suplement}分, 当前工作时间: {self.pair_timer.get_work_time()}秒, 当前休息时间: {self.pair_timer.get_relax_time()}秒')
         
         
-    def showEvent(self, a0):
-        # 模拟点击消除掉tool窗口首次press的延迟
-        def simulate_click():
-            # 获取窗口的位置
-            initial_pos = self.pos()
-            cursorpos = QCursor.pos()
-            # win32api模拟点击
-            win32api.SetCursorPos((initial_pos.x() + 5, initial_pos.y() + 5))
-            win32api.mouse_event(win32con.MOUSEEVENTF_LEFTDOWN, 0, 0)
-            win32api.mouse_event(win32con.MOUSEEVENTF_LEFTUP, 0, 0)
-            win32api.SetCursorPos((cursorpos.x(), cursorpos.y()))
-        QTimer.singleShot(0, simulate_click)
-        return super().showEvent(a0)
+    # def showEvent(self, a0):
+    #     # 模拟点击消除掉tool窗口首次press的延迟 # 似乎并不需要
+    #     def simulate_click():
+    #         # 获取窗口的位置
+    #         initial_pos = self.pos()
+    #         cursorpos = QCursor.pos()
+    #         # win32api模拟点击
+    #         win32api.SetCursorPos((initial_pos.x() + 5, initial_pos.y() + 5))
+    #         win32api.mouse_event(win32con.MOUSEEVENTF_LEFTDOWN, 0, 0)
+    #         win32api.mouse_event(win32con.MOUSEEVENTF_LEFTUP, 0, 0)
+    #         win32api.SetCursorPos((cursorpos.x(), cursorpos.y()))
+    #     QTimer.singleShot(0, simulate_click)
+    #     return super().showEvent(a0)
     
     def closeEvent(self, event):
         # 在关闭前显示提示框
@@ -477,7 +490,11 @@ class WorkRelaxTimerWindow(FadeoutMixin, StylishFramelessWindow, Ui_Form):
                 self.pair_timer.get_work_time(),
                 self.pair_timer.get_relax_time()
             )
-    
+            
+        # 检查快捷键是否失效
+        for hotkey in [self.work_hotkey, self.relax_hotkey, self.stop_hotkey]:
+            hotkey.reset_hotkey()
+            
     def restore_from_state(self, state):
         """从状态恢复"""
         if state == None or state == {}:
@@ -506,3 +523,146 @@ class WorkRelaxTimerWindow(FadeoutMixin, StylishFramelessWindow, Ui_Form):
         self.update_relaxtime(relax_time)
         return True
     
+
+class ContextMenuManager:
+    """右键菜单管理器，用于为控件添加右键菜单"""
+    
+    def __init__(self, parent):
+        self.parent : WorkRelaxTimerWindow
+        self.parent = parent
+        
+    def create_menu_for_widget(self, widget):
+        """为指定控件创建右键菜单，所有控件使用统一的菜单"""
+        widget.setContextMenuPolicy(Qt.CustomContextMenu)
+        widget.customContextMenuRequested.connect(
+            lambda pos: self.show_unified_menu(widget, pos))
+            
+    def _create_base_menu(self, parent):
+        """创建基本菜单"""
+        menu = AnimatedMenu(parent, fade_when_idle=True)
+        menu.set_opacity_startend(0.95, 0.0)
+        
+        # 使用灰色主题
+        bg_color = Palette.white
+        text_color = Palette.gray 
+        highlight_bg = Palette.gray_light.lighter(120)
+        highlight_text = Palette.gray_dark
+        menu.set_theme(bg_color, text_color, highlight_bg, highlight_text)
+        
+        return menu
+            
+    def show_unified_menu(self, widget, pos):
+        """显示统一的右键菜单"""
+        
+        # 随机主题颜色
+        random_theme_color = random.choice([Palette.red, Palette.green, Palette.blue, Palette.orange, Palette.gray])
+        theme_color, theme_color_light, theme_color_dark = get_theme_colors(random_theme_color)
+        
+        menu = self._create_base_menu(self.parent)
+        menu.set_theme(Palette.white, theme_color, theme_color_light.lighter(120), theme_color_dark.darker(120))
+        
+        # 添加菜单项
+        menu.add_styled_action("保存当前状态", lambda: self.parent.self_check())
+        
+        # 文件访问菜单
+        files_menu = self._create_base_menu(self.parent)
+        files_menu.add_styled_action("打开日志文件", lambda: self.open_log_file())
+        files_menu.add_styled_action("打开数据文件", lambda: self.open_data_file())
+        files_menu.set_theme(Palette.white, theme_color, theme_color_light.lighter(120), theme_color_dark)
+        
+        files_action = QAction("文件访问", menu)
+        files_action.setMenu(files_menu)
+        menu.addAction(files_action)
+        
+        # 设置相关选项
+        settings_menu = self._create_base_menu(self.parent)
+        settings_menu.add_styled_action("置顶窗口", lambda: self.toggle_window_on_top())
+        settings_menu.add_styled_action("调整透明度", lambda: self.adjust_opacity())
+        settings_menu.add_styled_action("显示/隐藏迷你窗口", lambda: self.toggle_mini_window())
+        # settings_menu.add_styled_action("重置界面位置", lambda: self.reset_ui())
+        settings_menu.set_theme(Palette.white, theme_color, theme_color_light.lighter(120), theme_color_dark)
+        # 使菜单互相关联
+        settings_menu.add_related_fadeout_widget(menu)
+        menu.add_related_fadeout_widget(settings_menu)
+        
+        settings_action = QAction("设置", menu)
+        settings_action.setMenu(settings_menu)
+        menu.addAction(settings_action)
+        
+        menu.addSeparator()
+        menu.add_styled_action("退出", lambda: self.parent.closeEvent(None))
+        
+        # 显示菜单
+        menu.exec_(widget.mapToGlobal(pos))
+        
+    # 菜单项功能实现
+    def toggle_window_on_top(self):
+        """切换窗口置顶状态"""
+        flags = self.parent.windowFlags()
+        if flags & Qt.WindowStaysOnTopHint:
+            self.parent.setWindowFlags(flags & ~Qt.WindowStaysOnTopHint)
+            _logger.info("窗口取消置顶")
+        else:
+            self.parent.setWindowFlags(flags | Qt.WindowStaysOnTopHint)
+            _logger.info("窗口置顶")
+        self.parent.show()
+        
+    def adjust_opacity(self):
+        """调整窗口透明度"""
+        # 简单实现，实际应用中可能需要显示一个滑块供用户调整
+        current = self.parent.windowOpacity()
+        if current > 0.7:
+            self.parent.setWindowOpacity(0.7)
+            self.parent.set_opacity_startend(0.7, 0)
+            self.parent.mini.setWindowOpacity(0.7)
+            self.parent.mini.set_opacity_startend(0.7, 0)
+        else:
+            self.parent.setWindowOpacity(0.9)
+            self.parent.set_opacity_startend(0.9, 0)
+            self.parent.mini.setWindowOpacity(0.9)
+            self.parent.mini.set_opacity_startend(0.9, 0)
+        
+
+    def toggle_mini_window(self):
+        """显示/隐藏迷你窗口"""
+        self.parent.try_fadeout_animation(True)
+            
+    # def reset_ui(self):
+    #     """重置界面位置和大小"""
+    #     # 获取屏幕中心位置
+    #     screen = QApplication.primaryScreen().availableGeometry()
+    #     size = self.parent.size()
+    #     x = int((screen.width() - size.width()) / 2)
+    #     y = int((screen.height() - size.height()) / 2)
+    #     self.parent.move(x, y)
+    #     _logger.info("重置界面位置")
+    
+    def open_log_file(self):
+        """打开日志文件所在目录"""
+        import os
+        import subprocess
+        
+        # 获取日志文件目录
+        log_dir = _LOG_DIR
+        
+        if os.path.exists(log_dir):
+            _logger.info(f"打开日志文件目录: {log_dir}")
+            # 使用 Windows 资源管理器打开目录
+            subprocess.run(['explorer', log_dir])
+        else:
+            _logger.warning(f"日志文件目录不存在: {log_dir}")
+    
+    def open_data_file(self):
+        """打开数据文件所在目录"""
+        import os
+        import subprocess
+        
+        # 获取数据文件目录
+        data_dir = _DATA_DIR
+        
+        if os.path.exists(data_dir):
+            _logger.info(f"打开数据文件目录: {data_dir}")
+            # 使用 Windows 资源管理器打开目录
+            subprocess.run(['explorer', data_dir])
+        else:
+            _logger.warning(f"数据文件目录不存在: {data_dir}")
