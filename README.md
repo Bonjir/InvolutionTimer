@@ -29,7 +29,7 @@
 - **可以回顾自己过去每天学习、娱乐的时间分布**
 - 可以搭配一些现有时间工具使用，如番茄钟、微软专注时间等
 
-<img src="https://github.com/Bonjir/WorkRelaxTimer/blob/main/.images/schedule.png" width="50%" height="50%" />
+<img src="https://github.com/Bonjir/WorkRelaxTimer/blob/main/.images/schedule.jpg" width="100%" height="100%" />
 
 ### 有了这个工具，你可以：
 
