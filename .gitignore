@@ -8,3 +8,4 @@ dist
 tempCodeRunnerFile.py
 icons
 *.bat
+ui/__pycache__

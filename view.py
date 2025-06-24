@@ -8,14 +8,13 @@ import win32api
 import win32con
 from datetime import datetime, timedelta
 from system_hotkey import SystemHotkey
-import keyboard
 
 from widgets import *
 from ui.widget import Ui_Form 
 from ui.palette import Palette, get_theme_colors
 from utils import CrashHandler, Logger, get_work_date, _LOG_DIR, _DATA_DIR
 from core import PairTimer, DataManager
-from utils import GlobalHotkey
+from utils import HotkeyHandler, _KeyBoard_Hotkey
 
 _logger = Logger(__name__)
 
@@ -220,16 +219,6 @@ class WorkRelaxTimerWindow(FadeoutMixin, StylishFramelessWindow, Ui_Form):
         self.self_check_timer.timeout.connect(self.self_check)
         self.self_check_timer.start(60*1000) # 60秒
         
-        # 设置全局快捷键
-        self.work_hotkey = GlobalHotkey('Ctrl+F1')
-        self.work_hotkey.triggered.connect(self.on_work_shortcut_activated)
-        
-        self.relax_hotkey = GlobalHotkey('Ctrl+F2')
-        self.relax_hotkey.triggered.connect(self.on_relax_shortcut_activated)
-        
-        self.stop_hotkey = GlobalHotkey('Ctrl+F3')
-        self.stop_hotkey.triggered.connect(self.on_stop_shortcut_activated)
-        
         # 数据管理器
         self.data_manager = data_manager
         
@@ -243,7 +232,35 @@ class WorkRelaxTimerWindow(FadeoutMixin, StylishFramelessWindow, Ui_Form):
         
         # 为主窗口和各个控件添加右键菜单
         self.context_menu_manager.create_menu_for_widget(self.form)
+        self.context_menu_manager.create_menu_for_widget(self.work_edit)
+        self.context_menu_manager.create_menu_for_widget(self.relax_edit)
+        
+        # 初始化热键
+        self.hotkey_handler = HotkeyHandler()
+        self.hotkey_handler.register_hotkey('<ctrl>+<alt>+1', self.on_work_shortcut_activated)
+        self.hotkey_handler.register_hotkey('<ctrl>+<alt>+2', self.on_relax_shortcut_activated)
+        self.hotkey_handler.register_hotkey('<ctrl>+<alt>+3', self.on_stop_shortcut_activated)
+        self.hotkey_handler.start_listener()
+        
+        
+        # debug for keyboard hotkey
+        self._work_hotkey = _KeyBoard_Hotkey('ctrl+alt+1')
+        self._work_hotkey.triggered.connect(self._debug_on_work_hotkey_keyboard_triggered)
+        self._relax_hotkey = _KeyBoard_Hotkey('ctrl+alt+2')
+        self._relax_hotkey.triggered.connect(self._debug_on_relax_hotkey_keyboard_triggered)
+        self._stop_hotkey = _KeyBoard_Hotkey('ctrl+alt+3')
+        self._stop_hotkey.triggered.connect(self._debug_on_stop_hotkey_keyboard_triggered)
 
+    def _debug_on_work_hotkey_keyboard_triggered(self):
+        _logger.info("keyboard- 快捷键触发 - 工作模式")
+        
+    def _debug_on_relax_hotkey_keyboard_triggered(self):
+        _logger.info("keyboard- 快捷键触发 - 放松模式")
+        
+    def _debug_on_stop_hotkey_keyboard_triggered(self):
+        _logger.info("keyboard- 快捷键触发 - 停止模式")
+        
+        
     def on_work_shortcut_activated(self):
         self.try_fadeout_animation(False)
         self.mini.try_fadeout_animation(True)
@@ -491,10 +508,6 @@ class WorkRelaxTimerWindow(FadeoutMixin, StylishFramelessWindow, Ui_Form):
                 self.pair_timer.get_relax_time()
             )
             
-        # 检查快捷键是否失效
-        for hotkey in [self.work_hotkey, self.relax_hotkey, self.stop_hotkey]:
-            hotkey.reset_hotkey()
-            
     def restore_from_state(self, state):
         """从状态恢复"""
         if state == None or state == {}:
@@ -523,6 +536,21 @@ class WorkRelaxTimerWindow(FadeoutMixin, StylishFramelessWindow, Ui_Form):
         self.update_relaxtime(relax_time)
         return True
     
+    def mousePressEvent(self, event):
+        # 更新最后活动时间
+        self.last_activity_time = QDateTime.currentDateTime()
+        return super().mousePressEvent(event)
+    
+    def mouseMoveEvent(self, event):
+        # 更新最后活动时间 
+        self.last_activity_time = QDateTime.currentDateTime()
+        return super().mouseMoveEvent(event)
+        
+    def keyPressEvent(self, event):
+        # 更新最后活动时间
+        self.last_activity_time = QDateTime.currentDateTime()
+        return super().keyPressEvent(event)
+
 
 class ContextMenuManager:
     """右键菜单管理器，用于为控件添加右键菜单"""

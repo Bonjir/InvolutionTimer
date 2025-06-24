@@ -4,8 +4,13 @@ import signal
 import atexit
 from pathlib import Path
 import sys
-from typing import Optional, Dict
+import threading
+import time
+from typing import Optional, Dict, Callable
 from PyQt5.QtCore import QObject, pyqtSignal
+import pynput
+
+# ---------------- debug
 import keyboard
 
 APP_NAME = 'WorkRelaxTimer'
@@ -193,9 +198,7 @@ class Logger:
 
 _logger = Logger(__name__)
 
-
-class GlobalHotkey(QObject):
-    """基础快捷键类"""
+class _KeyBoard_Hotkey(QObject): # debug deprecated
     triggered = pyqtSignal()  # 基础触发信号
     
     def __init__(self, key_sequence: str):
@@ -208,7 +211,7 @@ class GlobalHotkey(QObject):
     def _register(self):
         """注册快捷键"""
         try:
-            keyboard.add_hotkey(self._key_sequence, self.triggered.emit)
+            keyboard.add_hotkey(self._key_sequence, self.on_activate)
             self._registered = True
             self._logger.info(f"成功注册快捷键: {self._key_sequence}")
         except Exception as e:
@@ -230,24 +233,71 @@ class GlobalHotkey(QObject):
         
     def reset_hotkey(self):
         """检查快捷键是否失效，如果失效则尝试重新注册"""
-        if not self._registered:
-            return False
-        
+        # 不管是否已注册，先尝试注销
         try:
             keyboard.remove_hotkey(self._key_sequence)
             self._registered = False
         except Exception as e:
-            self._logger.error(f"检查到快捷键 {self._key_sequence} 失效: {e}")
+            self._logger.debug(f"注销快捷键 {self._key_sequence} 时出现异常: {e}")
+            self._registered = False
             
+        # 重新注册
         try:
-            keyboard.add_hotkey(self._key_sequence, self.triggered.emit)
+            keyboard.add_hotkey(self._key_sequence, self.on_activate)
             self._registered = True
-            self._logger.info(f"重新注册快捷键: {self._key_sequence}")
+            # self._logger.info(f"重新注册快捷键: {self._key_sequence}")
+            return True
         except Exception as e:
             self._logger.error(f"重新注册快捷键 {self._key_sequence} 失败: {e}")
-            
-        return self._registered
+            return False
     
+    def on_activate(self):
+        self.triggered.emit()
+        self._logger.info(f"keyboard - 触发快捷键{self._key_sequence}")
+    
+# 独立回调函数的热键
+class HotkeyHandler(QObject):
+    _hotkey_triggered = pyqtSignal(str)
+
+    def __init__(self):
+        super().__init__()
+        self._hotkey_map = {}  # 热键组合映射到触发函数
+        self._hotkey_callback = {}  # 热键ID映射到用户回调
+        self._listener = None  # 监听器对象
+        self._hotkey_triggered.connect(self.handle_hotkey)
+        
+        self._logger = Logger(__class__.__name__)
+
+    def register_hotkey(self, hotkey_sequence: str, callback: Callable):
+        # 通过默认参数固定捕获当前 hotkey_sequence
+        self._hotkey_map[hotkey_sequence] = lambda hk=hotkey_sequence: self._hotkey_triggered.emit(hk)
+        self._hotkey_callback[hotkey_sequence] = callback
+
+    def _start_listener(self):
+        # 使用单独的变量名避免覆盖 self._hotkey_map
+        with pynput.keyboard.GlobalHotKeys(self._hotkey_map) as self._listener:
+            self._listener.join()
+
+    def start_listener(self):
+        # 确保监听器在独立线程中运行
+        thread = threading.Thread(target=self._start_listener, daemon=True)
+        thread.start()
+
+    def handle_hotkey(self, hotkey_id: str):
+        # 在主线程中执行回调（假设 HotkeyHandler 在主线程创建）
+        try:
+            callback = self._hotkey_callback.get(hotkey_id)
+            if callback:
+                callback()
+                self._logger.info(f"热键回调: {hotkey_id}")
+        except Exception as e:
+            self._logger.exception(f"热键回调错误: {e}")
+
+    def stop_listener(self):
+        # 安全停止监听器
+        if self._listener:
+            self._listener.stop()
+            
 from datetime import datetime, timedelta, date
 
 def get_work_date(target_time: datetime = None) -> date:
